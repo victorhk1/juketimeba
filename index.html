@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jukebox</title>
+
+<style>
+body{background:#111;color:#eee;font:14px Arial;max-width:700px;margin:auto;padding:20px}
+input,button{padding:9px;background:#222;color:#fff;border:1px solid #444}
+input{width:70%}button{cursor:pointer}
+
+</style>
+</style>
+</head>
+
+<body>
+
+<h2>Jukebox</h2>
+
+<div class="player-grid">
+  
+<div style="display: flex; gap: 15px; font-family: sans-serif;">
+
+  <!-- PLAYER 1 -->
+  <div style="background: #1e1e24; color: #fff; padding: 15px; border-radius: 6px; width: 220px; text-align: center;">
+    <h3 style="margin: 0 0 10px 0; font-size: 16px;">Cocainmonstret #EUW</h3>
+    <a href="https://op.gg" target="_blank" 
+       style="display: inline-block; background: #5383e8; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold;">
+       Open OP.GG
+    </a>
+  </div>
+
+  <!-- PLAYER 2 -->
+  <div style="background: #1e1e24; color: #fff; padding: 15px; border-radius: 6px; width: 220px; text-align: center;">
+    <h3 style="margin: 0 0 10px 0; font-size: 16px;">ElainezBrFfW #EUW</h3>
+    <a href="https://op.gg" target="_blank" 
+       style="display: inline-block; background: #5383e8; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold;">
+       Open OP.GG
+    </a>
+  </div>
+
+</div>
+
+
+</div>
+
+<button onclick="share()">Share room</button>
+<p id="status">Connecting...</p>
+
+<div id="player"></div>
+
+<p>
+🔊
+<input id="volume" type="range" min="0" max="100" value="100">
+</p>
+
+<input id="url" placeholder="Paste YouTube link or search...">
+<button onclick="add()">Add / Search</button>
+
+<h3>Queue</h3>
+<div id="queue"></div>
+
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+<script>
+
+let player,peer,conn;
+
+let host=!location.hash;
+
+let room=
+  location.hash.slice(1) ||
+  crypto.randomUUID();
+
+let queue=[];
+let current=null;
+let ready=false;
+let changing=false;
+
+if(host)
+  history.replaceState(null,"","#"+room);
+
+
+/* STATUS */
+
+function status(text){
+  document.getElementById("status").textContent=text;
+}
+
+
+/* YOUTUBE PLAYER */
+
+function onYouTubeIframeAPIReady(){
+
+  player=new YT.Player("player",{
+
+    width:"100%",
+    height:"400",
+
+    videoId:"",
+
+    playerVars:{
+      playsinline:1,
+      controls:1,
+      origin:location.origin
+    },
+
+    events:{
+
+      onReady:()=>{
+
+        ready=true;
+
+        player.setVolume(100);
+
+        status(
+          host
+          ? "Room ready — share the URL"
+          : "Connected"
+        );
+      },
+
+      onStateChange:e=>{
+
+        if(changing)
+          return;
+
+        if(
+          e.data===
+          YT.PlayerState.PLAYING
+        ){
+
+          send({
+            type:"play",
+            time:player.getCurrentTime()
+          });
+
+        }
+
+        if(
+          e.data===
+          YT.PlayerState.PAUSED
+        ){
+
+          send({
+            type:"pause",
+            time:player.getCurrentTime()
+          });
+
+        }
+
+        if(
+          e.data===
+          YT.PlayerState.ENDED &&
+          host
+        ){
+
+          next();
+        }
+      },
+
+      onError:e=>{
+
+        const errors={
+          2:"Invalid YouTube video.",
+          5:"YouTube HTML5 player error.",
+          100:"Video not found or private.",
+          101:"This video cannot be embedded.",
+          150:"This video cannot be embedded.",
+          153:"YouTube rejected the player. Make sure the site is running over HTTPS."
+        };
+
+        status(
+          errors[e.data] ||
+          "YouTube error: "+e.data
+        );
+      }
+    }
+  });
+}
+
+
+/* GET VIDEO ID FROM URL */
+
+function getID(text){
+
+  try{
+
+    let u=new URL(text);
+
+    if(
+      u.hostname==="youtu.be" ||
+      u.hostname==="www.youtu.be"
+    )
+      return u.pathname.slice(1);
+
+    if(
+      u.hostname.includes("youtube.com")
+    ){
+
+      if(u.searchParams.get("v"))
+        return u.searchParams.get("v");
+
+      let parts=u.pathname.split("/");
+
+      let type=
+        parts[1];
+
+      if(
+        type==="shorts" ||
+        type==="embed" ||
+        type==="live"
+      )
+        return parts[2];
+    }
+
+  }catch{}
+
+  return null;
+}
+
+
+/* ADD / SEARCH */
+
+function add(){
+
+  let input=
+    document.getElementById("url");
+
+  let text=
+    input.value.trim();
+
+  if(!text)
+    return;
+
+  let id=getID(text);
+
+
+  /* URL */
+
+  if(id){
+
+    if(host){
+
+      queue.push(id);
+
+      if(!current)
+        next();
+
+      render();
+      sync();
+
+    }else{
+
+      send({
+        type:"add",
+        id:id
+      });
+    }
+
+    input.value="";
+
+    return;
+  }
+
+
+  /* SEARCH */
+
+  window.open(
+
+    "https://www.youtube.com/results?search_query="+
+    encodeURIComponent(text),
+
+    "_blank"
+  );
+}
+
+
+/* QUEUE */
+
+function remove(index){
+
+  if(!host){
+
+    send({
+      type:"remove",
+      index:index
+    });
+
+    return;
+  }
+
+
+  let wasCurrent=
+    queue[index]===current;
+
+  queue.splice(index,1);
+
+
+  if(wasCurrent){
+
+    current=null;
+
+    next();
+
+  }
+
+
+  render();
+  sync();
+}
+
+
+function next(){
+
+  if(!queue.length){
+
+    current=null;
+
+    if(ready)
+      player.stopVideo();
+
+    render();
+    sync();
+
+    return;
+  }
+
+
+  current=queue[0];
+
+  changing=true;
+
+  player.loadVideoById(
+    current
+  );
+
+  setTimeout(
+    ()=>changing=false,
+    500
+  );
+
+  render();
+  sync();
+}
+
+
+function render(){
+
+  document.getElementById("queue").innerHTML=
+
+    queue.map((id,i)=>`
+
+      <div class="item">
+
+        <span>
+          ${i+1}. ${id}
+        </span>
+
+        <button
+          onclick="remove(${i})"
+        >
+          ×
+        </button>
+
+      </div>
+
+    `).join("");
+}
+
+
+/* VOLUME */
+
+document
+  .getElementById("volume")
+  .oninput=function(){
+
+    let value=
+      Number(this.value);
+
+    if(ready)
+      player.setVolume(value);
+
+    send({
+      type:"volume",
+      volume:value
+    });
+  };
+
+
+/* SEND */
+
+function send(data){
+
+  if(
+    conn &&
+    conn.open
+  )
+    conn.send(data);
+}
+
+
+/* SEND FULL STATE */
+
+function sync(){
+
+  send({
+
+    type:"state",
+
+    queue:queue,
+
+    current:current,
+
+    time:
+      ready && current
+      ? player.getCurrentTime()
+      : 0,
+
+    playing:
+      ready &&
+      current &&
+      player.getPlayerState()===
+      YT.PlayerState.PLAYING,
+
+    volume:
+      ready
+      ? player.getVolume()
+      : 100
+  });
+}
+
+
+/* RECEIVE DATA */
+
+function apply(data){
+
+
+  /* FULL STATE */
+
+  if(data.type==="state"){
+
+    queue=
+      data.queue || [];
+
+    render();
+
+
+    if(data.volume!=null){
+
+      player.setVolume(
+        data.volume
+      );
+
+      document
+        .getElementById("volume")
+        .value=data.volume;
+    }
+
+
+    if(
+      data.current !==
+      current
+    ){
+
+      current=
+        data.current;
+
+      if(current){
+
+        changing=true;
+
+        player.loadVideoById(
+          current,
+          data.time || 0
+        );
+
+        setTimeout(()=>{
+
+          changing=false;
+
+          if(data.playing)
+            player.playVideo();
+
+        },500);
+      }
+
+    }else if(current){
+
+      changing=true;
+
+      player.seekTo(
+        data.time || 0,
+        true
+      );
+
+      if(data.playing)
+        player.playVideo();
+      else
+        player.pauseVideo();
+
+      setTimeout(
+        ()=>changing=false,
+        300
+      );
+    }
+
+    return;
+  }
+
+
+  /* ADD */
+
+  if(
+    data.type==="add" &&
+    host
+  ){
+
+    queue.push(
+      data.id
+    );
+
+    if(!current)
+      next();
+
+    render();
+    sync();
+
+    return;
+  }
+
+
+  /* REMOVE */
+
+  if(
+    data.type==="remove" &&
+    host
+  ){
+
+    remove(
+      data.index
+    );
+
+    return;
+  }
+
+
+  /* PLAY */
+
+  if(data.type==="play"){
+
+    changing=true;
+
+    player.seekTo(
+      data.time,
+      true
+    );
+
+    player.playVideo();
+
+    setTimeout(
+      ()=>changing=false,
+      300
+    );
+
+    return;
+  }
+
+
+  /* PAUSE */
+
+  if(data.type==="pause"){
+
+    changing=true;
+
+    player.seekTo(
+      data.time,
+      true
+    );
+
+    player.pauseVideo();
+
+    setTimeout(
+      ()=>changing=false,
+      300
+    );
+
+    return;
+  }
+
+
+  /* VOLUME */
+
+  if(data.type==="volume"){
+
+    player.setVolume(
+      data.volume
+    );
+
+    document
+      .getElementById("volume")
+      .value=data.volume;
+
+    return;
+  }
+
+
+  /* STATE REQUEST */
+
+  if(
+    data.type==="request" &&
+    host
+  ){
+
+    sync();
+  }
+}
+
+
+/* DRIFT CORRECTION */
+
+/*
+   Host sends its exact playback
+   position once every second.
+*/
+
+setInterval(()=>{
+
+  if(
+    !host ||
+    !conn ||
+    !conn.open ||
+    !ready ||
+    !current
+  )
+    return;
+
+
+  send({
+
+    type:"clock",
+
+    time:
+      player.getCurrentTime(),
+
+    playing:
+      player.getPlayerState()===
+      YT.PlayerState.PLAYING
+  });
+
+},1000);
+
+
+/* RECEIVE CLOCK */
+
+function clock(data){
+
+  if(
+    host ||
+    !ready ||
+    !current
+  )
+    return;
+
+
+  let local=
+    player.getCurrentTime();
+
+  let drift=
+    Math.abs(
+      local-data.time
+    );
+
+
+  /* Correct significant drift */
+
+  if(drift>0.5){
+
+    changing=true;
+
+    player.seekTo(
+      data.time,
+      true
+    );
+
+    setTimeout(
+      ()=>changing=false,
+      300
+    );
+  }
+
+
+  /* Correct play state */
+
+  if(
+    data.playing &&
+    player.getPlayerState() !==
+    YT.PlayerState.PLAYING
+  ){
+
+    changing=true;
+
+    player.playVideo();
+
+    setTimeout(
+      ()=>changing=false,
+      300
+    );
+  }
+
+
+  if(
+    !data.playing &&
+    player.getPlayerState()===
+    YT.PlayerState.PLAYING
+  ){
+
+    changing=true;
+
+    player.pauseVideo();
+
+    setTimeout(
+      ()=>changing=false,
+      300
+    );
+  }
+}
+
+
+/* CONNECTION */
+
+function setup(connection){
+
+  conn=connection;
+
+
+  connection.on(
+    "open",
+    ()=>{
+
+      status("Connected!");
+
+      if(host)
+        sync();
+      else
+        send({
+          type:"request"
+        });
+    }
+  );
+
+
+  connection.on(
+    "data",
+    data=>{
+
+      if(
+        data.type===
+        "clock"
+      )
+        clock(data);
+      else
+        apply(data);
+
+    }
+  );
+
+
+  connection.on(
+    "close",
+    ()=>status(
+      "Disconnected"
+    )
+  );
+}
+
+
+/* PEER */
+
+if(host){
+
+  peer=new Peer(room);
+
+  peer.on(
+    "open",
+    ()=>{
+      status(
+        "Room ready — share the URL"
+      );
+    }
+  );
+
+  peer.on(
+    "connection",
+    setup
+  );
+
+}else{
+
+  peer=new Peer();
+
+  peer.on(
+    "open",
+    ()=>{
+      setup(
+        peer.connect(room)
+      );
+    }
+  );
+}
+
+
+/* SHARE */
+
+function share(){
+
+  navigator.clipboard
+    .writeText(
+      location.href
+    );
+
+  status(
+    "Room URL copied!"
+  );
+}
+
+
+render();
+
+</script>
+</body>
+</html>
