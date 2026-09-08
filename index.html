@@ -8,10 +8,10 @@
 <style>
 body{background:#111;color:#eee;font:14px Arial;max-width:700px;margin:auto;padding:20px}
 input,button{padding:9px;background:#222;color:#fff;border:1px solid #444}
-input{width:70%}
-button{cursor:pointer}
+input{width:70%}button{cursor:pointer}
 .controls{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 .item{display:flex;justify-content:space-between;background:#1d1d1d;padding:7px;margin:3px 0}
+#enablePlayback{background:#176b32}
 </style>
 </head>
 
@@ -44,7 +44,14 @@ button{cursor:pointer}
 <br>
 
 <button onclick="share()">Share room</button>
+
 <p id="status">Connecting...</p>
+
+<button id="enablePlayback"
+        onclick="enablePlayback()"
+        style="display:none">
+  ▶ Enable Playback
+</button>
 
 <div id="player"></div>
 
@@ -84,6 +91,7 @@ button{cursor:pointer}
 </div>
 
 <h3>Queue</h3>
+
 <div id="queue"></div>
 
 
@@ -91,6 +99,10 @@ button{cursor:pointer}
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
 <script>
+
+/* =====================================================
+   ROOM
+===================================================== */
 
 let player,peer,conn;
 
@@ -102,127 +114,130 @@ let room=
 
 let queue=[];
 let current=null;
+
 let ready=false;
 let changing=false;
+let connected=false;
+
+let skipInProgress=false;
 
 
 /* =====================================================
    BAJSOLLE CLASSICS
-   One click = entire list shuffled
 ===================================================== */
 
 const classics=[
 
   /* 🇮🇳 Indian / Bollywood */
 
-  "7TITTxxtA88",      // Show Me The Thumka
-  "KGn-erOG-Bs",      // Laal Pari
-  "0vK8R2p7v2Q",      // Gaali Gaali
-  "V4Jb5q5Q4nI",      // T-Series Random Mix
-  "g0eO74UmRBs",      // Kal Ho Naa Ho
+  "7TITTxxtA88",
+  "KGn-erOG-Bs",
+  "0vK8R2p7v2Q",
+  "V4Jb5q5Q4nI",
+  "g0eO74UmRBs",
 
   /* 🇲🇽 Mexican */
 
-  "Z9Z8x5Q4K0Q",      // Mexican Music Mix
-  "ULxcmMgsxf4",      // La Chona
+  "Z9Z8x5Q4K0Q",
+  "ULxcmMgsxf4",
 
   /* 🇸🇪 Swedish */
 
-  "eUMlH75Elmw",      // Vindarna viskar mitt namn
-  "AcMUULoT_jk",      // Satellit
-  "BpjamIyoeVQ",      // Gräver guld i USA
-  "4Ml6pJqc_bw",      // Fångad av en stormvind
+  "eUMlH75Elmw",
+  "AcMUULoT_jk",
+  "BpjamIyoeVQ",
+  "4Ml6pJqc_bw",
 
   /* 🇧🇦 Balkan */
 
-  "W6IAC_4rrHM",      // Kismi
-  "Ntn7PpY0GUU",      // Kismi Zumate
-  "rmMBAJ_moTg",      // Kismi version 2
-  "9x4pGQ9YQ3Y",      // No Escape From Balkan
-  "5h5QW9HqK4E",      // Whiskey Kola Tequila
+  "W6IAC_4rrHM",
+  "Ntn7PpY0GUU",
+  "rmMBAJ_moTg",
+  "9x4pGQ9YQ3Y",
+  "5h5QW9HqK4E",
 
   /* 🇩🇪 IFA Wartburg */
 
-  "Y0v0H8w3dJY",      // IFA Wartburg FDJ
-  "3V3kX2QJm5E",      // IFA Wartburg Kosmoskost
+  "Y0v0H8w3dJY",
+  "3V3kX2QJm5E",
 
   /* 🐸 Eurodance */
 
-  "jw8sG7wQp3M",      // Crazy Frog Popcorn
-  "llTYfQI5IAM",      // Dr Bombay Calcutta
-  "6r7F4W3sQ5M",      // Dr Bombay SOS
-  "8V5cQ3Kp0xA",      // Dr Bombay Rice & Curry
+  "jw8sG7wQp3M",
+  "llTYfQI5IAM",
+  "6r7F4W3sQ5M",
+  "8V5cQ3Kp0xA",
 
   /* 💿 E-Type */
 
-  "8d7e4fY9x2Y",      // This Is The Way
-  "svnE-eQVtPM",      // Angels Crying
-  "HoT1GFrMods",      // Here I Go Again
+  "8d7e4fY9x2Y",
+  "svnE-eQVtPM",
+  "HoT1GFrMods",
 
   /* 🇰🇿 Sadraddin */
 
-  "J4jK8Q9m3Yw",      // Jauap bar ma?
-  "7x7XK4Jqf9A",      // Taxi
-  "Q8p5R2nK7Lc",      // Aiga qarap
+  "J4jK8Q9m3Yw",
+  "7x7XK4Jqf9A",
+  "Q8p5R2nK7Lc",
 
   /* 🤠 Country */
 
-  "Jsw8q4fNfBw",      // It's Alright to Be a Redneck
-  "K7c4P8nQ2Xs",      // Fågel Roger
+  "Jsw8q4fNfBw",
+  "K7c4P8nQ2Xs",
 
   /* 🎬 Original YouTube videos */
 
-  "hvrUrz6cCY0",      // Nickelback / Creed Mix
-  "DvfX5hbhBnw",      // Cowboys & Indians Mix
-  "i35QJVw0RBM",      // South Park Song
-  "-VILgSsesD0",      // Let's Fighting Love
-  "p_5yt5IX38I",      // Random Mongol Music
-  "Wj4qpfWHFDo",      // Chinese Rap #1
-  "rShjZ_op1V8",      // Chinese Rap #2
-  "mldcDidGJCg",      // Chinese Rap #3
-  "7Snj1uTnGhc",      // 2000s Rock Mix
-  "vJnonxp7YLg",      // 2000s R&B Mix
+  "hvrUrz6cCY0",
+  "DvfX5hbhBnw",
+  "i35QJVw0RBM",
+  "-VILgSsesD0",
+  "p_5yt5IX38I",
+  "Wj4qpfWHFDo",
+  "rShjZ_op1V8",
+  "mldcDidGJCg",
+  "7Snj1uTnGhc",
+  "vJnonxp7YLg",
 
   /* 🤘 Hardcore Superstar */
 
-  "J7Yq5V9kK4M",      // We Don't Need a Cure
-  "R8mK4pQ7xYs",      // Liberation
-  "F4n8Q2vK6Ys",      // Above the Law
+  "J7Yq5V9kK4M",
+  "R8mK4pQ7xYs",
+  "F4n8Q2vK6Ys",
 
   /* 🤘 Metallica */
 
-  "CD-E-LDc384",      // Enter Sandman
-  "xnKhsTXoKCI",      // Master of Puppets
-  "tAGnKpE4NCI",      // Nothing Else Matters
+  "CD-E-LDc384",
+  "xnKhsTXoKCI",
+  "tAGnKpE4NCI",
 
   /* 🤘 Black Sabbath */
 
-  "0qanF-91aJo",      // Paranoid
-  "LQUXuQ6Zd9w",      // War Pigs
-  "5s7_WbiR79E",      // Iron Man
+  "0qanF-91aJo",
+  "LQUXuQ6Zd9w",
+  "5s7_WbiR79E",
 
   /* ⚔️ Blind Guardian */
 
-  "CZ_VFJn2kJM",      // Valhalla
-  "n63UbX5kzAc",      // The Bard's Song
-  "SVg8eP7KPNQ",      // Mirror Mirror
+  "CZ_VFJn2kJM",
+  "n63UbX5kzAc",
+  "SVg8eP7KPNQ",
 
   /* 🎧 Electronic / EDM */
 
-  "1T7o8c5Hq9A",      // Flume - Holding On
-  "Q4m8K2vP7Xs",      // MC Punjab
-  "0FRlJkUSKv8",      // Timmy Trumpet & Dimatik
+  "1T7o8c5Hq9A",
+  "Q4m8K2vP7Xs",
+  "0FRlJkUSKv8",
 
   /* 🎸 Lynyrd Skynyrd */
 
-  "0LwcvjNJTuM",      // Free Bird
-  "sMmTkKz60W8",      // Simple Man
+  "0LwcvjNJTuM",
+  "sMmTkKz60W8",
 
   /* 👑 Michael Jackson */
 
-  "Zi_XLOBDo_Y",      // Billie Jean
-  "oRdxUFDoQe0",      // Beat It
-  "sOnqjkJTMaA"       // Thriller
+  "Zi_XLOBDo_Y",
+  "oRdxUFDoQe0",
+  "sOnqjkJTMaA"
 
 ];
 
@@ -241,7 +256,34 @@ function status(text){
 
 
 /* =====================================================
-   YOUTUBE PLAYER
+   CONNECTION STATUS
+===================================================== */
+
+function connectionStatus(){
+
+  if(host){
+
+    status(
+      conn && conn.open
+      ? "🟢 Connected — host"
+      : "🟢 Room ready — share the URL"
+    );
+
+  }else{
+
+    status(
+      connected
+      ? "🟢 Connected — synced"
+      : "🟡 Connecting..."
+    );
+
+  }
+
+}
+
+
+/* =====================================================
+   YOUTUBE
 ===================================================== */
 
 function onYouTubeIframeAPIReady(){
@@ -267,11 +309,7 @@ function onYouTubeIframeAPIReady(){
 
         player.setVolume(100);
 
-        status(
-          host
-          ? "Room ready — share the URL"
-          : "Connected"
-        );
+        connectionStatus();
 
       },
 
@@ -290,8 +328,12 @@ function onYouTubeIframeAPIReady(){
         ){
 
           send({
+
             type:"play",
-            time:player.getCurrentTime()
+
+            time:
+              player.getCurrentTime()
+
           });
 
         }
@@ -305,8 +347,12 @@ function onYouTubeIframeAPIReady(){
         ){
 
           send({
+
             type:"pause",
-            time:player.getCurrentTime()
+
+            time:
+              player.getCurrentTime()
+
           });
 
         }
@@ -317,7 +363,8 @@ function onYouTubeIframeAPIReady(){
         if(
           e.data===
           YT.PlayerState.ENDED &&
-          host
+          host &&
+          !skipInProgress
         ){
 
           next();
@@ -327,28 +374,39 @@ function onYouTubeIframeAPIReady(){
       },
 
 
+      /* =================================================
+         AUTOMATICALLY SKIP BAD YOUTUBE VIDEOS
+      ================================================= */
+
       onError:e=>{
 
-        const errors={
+        const bad=[
 
-          2:"Invalid YouTube video.",
+          2,    // invalid ID
+          5,    // HTML5 error
+          100,  // unavailable/deleted/private
+          101,  // embedding disabled
+          150,  // embedding disabled
+          153   // player request error
 
-          5:"YouTube HTML5 player error.",
+        ];
 
-          100:"Video not found or private.",
 
-          101:"This video cannot be embedded.",
+        if(
+          host &&
+          current &&
+          bad.includes(e.data)
+        ){
 
-          150:"This video cannot be embedded.",
+          skipUnavailable();
 
-          153:"YouTube rejected the player. Use HTTPS."
+        }else{
 
-        };
+          status(
+            "YouTube error: "+e.data
+          );
 
-        status(
-          errors[e.data] ||
-          "YouTube error: "+e.data
-        );
+        }
 
       }
 
@@ -360,7 +418,68 @@ function onYouTubeIframeAPIReady(){
 
 
 /* =====================================================
-   GET YOUTUBE VIDEO ID
+   SKIP UNAVAILABLE VIDEO
+===================================================== */
+
+function skipUnavailable(){
+
+  if(skipInProgress)
+    return;
+
+  skipInProgress=true;
+
+
+  status(
+    "⏭️ Skipping unavailable video..."
+  );
+
+
+  /*
+    Remove current song from queue.
+  */
+
+  if(
+    queue.length &&
+    queue[0]===current
+  ){
+
+    queue.shift();
+
+  }else{
+
+    let i=
+      queue.indexOf(current);
+
+    if(i>=0)
+      queue.splice(i,1);
+
+  }
+
+
+  current=null;
+
+
+  render();
+
+
+  /*
+    Give YouTube a moment before loading
+    the next video.
+  */
+
+  setTimeout(()=>{
+
+    skipInProgress=false;
+
+    next();
+
+  },300);
+
+}
+
+
+/* =====================================================
+   YOUTUBE ID
 ===================================================== */
 
 function getID(text){
@@ -412,11 +531,12 @@ function getID(text){
   }catch{}
 
   return null;
+
 }
 
 
 /* =====================================================
-   NORMAL ADD
+   ADD NORMAL SONG
 ===================================================== */
 
 function add(){
@@ -452,9 +572,23 @@ function add(){
 
     }else{
 
+      if(!connected){
+
+        status(
+          "Not connected yet."
+        );
+
+        return;
+
+      }
+
+
       send({
+
         type:"add",
+
         id:id
+
       });
 
     }
@@ -480,20 +614,33 @@ function add(){
 
 
 /* =====================================================
-   BAJSOLLE CLASSICS
+   BAJSOLLE BUTTON
 ===================================================== */
 
 function playBajsolleClassic(){
 
   if(!host){
 
+    if(!connected){
+
+      status(
+        "Not connected yet."
+      );
+
+      return;
+
+    }
+
+
     send({
       type:"classic"
     });
 
+
     status(
-      "Starting Bajsolle Classics..."
+      "🎵 Starting Bajsolle Classics..."
     );
+
 
     return;
 
@@ -506,25 +653,16 @@ function playBajsolleClassic(){
 
 
 /* =====================================================
-   SHUFFLE ENTIRE CLASSICS LIST
+   SHUFFLE CLASSICS
 ===================================================== */
 
 function startClassicShuffle(){
-
-  /*
-    Copy the list.
-    The original Classics list stays unchanged.
-  */
 
   let shuffled=
     [...classics];
 
 
-  /*
-    Fisher-Yates shuffle.
-    This creates a randomized order
-    without duplicates.
-  */
+  /* Fisher-Yates */
 
   for(
     let i=shuffled.length-1;
@@ -550,20 +688,21 @@ function startClassicShuffle(){
 
 
   /*
-    Replace the queue with the
-    entire randomized Classics list.
+    Replace entire queue.
+    This means one click starts
+    a complete randomized Classics
+    playlist.
   */
 
-  queue=[
-    ...shuffled
-  ];
+  queue=
+    shuffled;
 
-
-  /*
-    Start the first song.
-  */
 
   current=null;
+
+
+  render();
+
 
   next();
 
@@ -578,7 +717,7 @@ function startClassicShuffle(){
 
 
 /* =====================================================
-   ADD CUSTOM CLASSIC
+   CUSTOM CLASSIC
 ===================================================== */
 
 function addClassicAndPlay(){
@@ -606,6 +745,17 @@ function addClassicAndPlay(){
 
   if(!host){
 
+    if(!connected){
+
+      status(
+        "Not connected yet."
+      );
+
+      return;
+
+    }
+
+
     send({
 
       type:"classicAdd",
@@ -613,6 +763,7 @@ function addClassicAndPlay(){
       id:id
 
     });
+
 
     input.value="";
 
@@ -629,15 +780,10 @@ function addClassicAndPlay(){
 
 
 /* =====================================================
-   ADD CUSTOM CLASSIC BY ID
+   CUSTOM CLASSIC -> NEXT
 ===================================================== */
 
 function addClassicAndPlayById(id){
-
-  /*
-    Add it to the Classics pool
-    if it isn't already there.
-  */
 
   if(
     !classics.includes(id)
@@ -649,8 +795,8 @@ function addClassicAndPlayById(id){
 
 
   /*
-    Add it immediately after
-    the currently playing song.
+    Put the new Classic immediately
+    after the currently playing song.
   */
 
   if(current){
@@ -733,6 +879,10 @@ function remove(index){
 
   if(!host){
 
+    if(!connected)
+      return;
+
+
     send({
 
       type:"remove",
@@ -781,16 +931,17 @@ function remove(index){
 
 
 /* =====================================================
-   NEXT
+   NEXT SONG
 ===================================================== */
 
 function next(){
 
-  /*
-    If the current song is at the
-    front of the queue, remove it.
+  if(skipInProgress)
+    return;
 
-    This happens when a song finishes.
+
+  /*
+    Remove the song that just finished.
   */
 
   if(
@@ -804,7 +955,7 @@ function next(){
 
 
   /*
-    Nothing left.
+    Queue empty.
   */
 
   if(!queue.length){
@@ -819,13 +970,19 @@ function next(){
     render();
     sync();
 
+
+    status(
+      "Queue empty."
+    );
+
+
     return;
 
   }
 
 
   /*
-    Select the next song.
+    First item is now the next song.
   */
 
   current=
@@ -840,20 +997,28 @@ function next(){
   );
 
 
-  setTimeout(
-    ()=>changing=false,
-    700
-  );
-
-
   render();
   sync();
+
+
+  /*
+    YouTube normally starts the video
+    automatically for the host because
+    the action originated from the user's
+    interaction / existing playback.
+  */
+
+  setTimeout(()=>{
+
+    changing=false;
+
+  },800);
 
 }
 
 
 /* =====================================================
-   RENDER QUEUE
+   RENDER
 ===================================================== */
 
 function render(){
@@ -867,8 +1032,16 @@ function render(){
       <div class="item">
 
         <span>
-          ${i===0 && id===current ? "▶ " : ""}
+
+          ${
+            i===0 &&
+            id===current
+            ? "▶ "
+            : ""
+          }
+
           ${i+1}. ${id}
+
         </span>
 
         <button
@@ -880,6 +1053,57 @@ function render(){
       </div>
 
     `).join("");
+
+}
+
+
+/* =====================================================
+   ENABLE PLAYBACK
+===================================================== */
+
+function enablePlayback(){
+
+  if(!ready)
+    return;
+
+
+  /*
+    This is a real user interaction,
+    allowing the browser to permit
+    YouTube playback.
+  */
+
+  changing=true;
+
+
+  if(current){
+
+    player.playVideo();
+
+  }
+
+
+  setTimeout(()=>{
+
+    changing=false;
+
+  },500);
+
+
+  document
+    .getElementById("enablePlayback")
+    .style.display="none";
+
+
+  if(connected){
+
+    send({
+
+      type:"request"
+
+    });
+
+  }
 
 }
 
@@ -930,16 +1154,26 @@ function send(data){
 
 
 /* =====================================================
-   FULL STATE SYNC
+   FULL STATE
 ===================================================== */
 
 function sync(){
+
+  if(
+    !host ||
+    !conn ||
+    !conn.open
+  )
+    return;
+
 
   send({
 
     type:"state",
 
-    queue:queue,
+    queue:[
+      ...queue
+    ],
 
     current:current,
 
@@ -965,13 +1199,15 @@ function sync(){
 
 
 /* =====================================================
-   RECEIVE DATA
+   APPLY STATE
 ===================================================== */
 
 function apply(data){
 
 
-  /* FULL STATE */
+  /* =================================================
+     FULL STATE
+  ================================================= */
 
   if(
     data.type==="state"
@@ -1001,6 +1237,10 @@ function apply(data){
     }
 
 
+    /*
+      Different song.
+    */
+
     if(
       data.current!==current
     ){
@@ -1025,10 +1265,35 @@ function apply(data){
           changing=false;
 
 
-          if(data.playing)
+          /*
+            Try autoplay.
+            If the browser blocks it,
+            the user can click Enable Playback.
+          */
+
+          if(data.playing){
+
             player.playVideo();
 
-        },700);
+
+            setTimeout(()=>{
+
+              if(
+                player.getPlayerState() !==
+                YT.PlayerState.PLAYING
+              ){
+
+                document
+                  .getElementById("enablePlayback")
+                  .style.display="inline-block";
+
+              }
+
+            },1000);
+
+          }
+
+        },800);
 
       }
 
@@ -1043,10 +1308,15 @@ function apply(data){
       );
 
 
-      if(data.playing)
+      if(data.playing){
+
         player.playVideo();
-      else
+
+      }else{
+
         player.pauseVideo();
+
+      }
 
 
       setTimeout(
@@ -1062,7 +1332,9 @@ function apply(data){
   }
 
 
-  /* NORMAL ADD */
+  /* =================================================
+     NORMAL ADD
+  ================================================= */
 
   if(
     data.type==="add" &&
@@ -1081,12 +1353,15 @@ function apply(data){
     render();
     sync();
 
+
     return;
 
   }
 
 
-  /* REMOVE */
+  /* =================================================
+     REMOVE
+  ================================================= */
 
   if(
     data.type==="remove" &&
@@ -1097,12 +1372,15 @@ function apply(data){
       data.index
     );
 
+
     return;
 
   }
 
 
-  /* BAJSOLLE CLASSICS */
+  /* =================================================
+     BAJSOLLE CLASSICS
+  ================================================= */
 
   if(
     data.type==="classic" &&
@@ -1111,12 +1389,15 @@ function apply(data){
 
     startClassicShuffle();
 
+
     return;
 
   }
 
 
-  /* CUSTOM CLASSIC */
+  /* =================================================
+     CUSTOM CLASSIC
+  ================================================= */
 
   if(
     data.type==="classicAdd" &&
@@ -1127,16 +1408,23 @@ function apply(data){
       data.id
     );
 
+
     return;
 
   }
 
 
-  /* PLAY */
+  /* =================================================
+     PLAY
+  ================================================= */
 
   if(
     data.type==="play"
   ){
+
+    if(!ready)
+      return;
+
 
     changing=true;
 
@@ -1161,11 +1449,17 @@ function apply(data){
   }
 
 
-  /* PAUSE */
+  /* =================================================
+     PAUSE
+  ================================================= */
 
   if(
     data.type==="pause"
   ){
+
+    if(!ready)
+      return;
+
 
     changing=true;
 
@@ -1190,11 +1484,17 @@ function apply(data){
   }
 
 
-  /* VOLUME */
+  /* =================================================
+     VOLUME
+  ================================================= */
 
   if(
     data.type==="volume"
   ){
+
+    if(!ready)
+      return;
+
 
     player.setVolume(
       data.volume
@@ -1212,7 +1512,9 @@ function apply(data){
   }
 
 
-  /* STATE REQUEST */
+  /* =================================================
+     STATE REQUEST
+  ================================================= */
 
   if(
     data.type==="request" &&
@@ -1227,7 +1529,7 @@ function apply(data){
 
 
 /* =====================================================
-   CLOCK / DRIFT CORRECTION
+   DRIFT CORRECTION
 ===================================================== */
 
 setInterval(()=>{
@@ -1267,7 +1569,8 @@ function clock(data){
   if(
     host ||
     !ready ||
-    !current
+    !current ||
+    !connected
   )
     return;
 
@@ -1281,6 +1584,10 @@ function clock(data){
       local-data.time
     );
 
+
+  /*
+    Correct significant drift.
+  */
 
   if(
     drift>0.5
@@ -1303,6 +1610,10 @@ function clock(data){
   }
 
 
+  /*
+    Correct play state.
+  */
+
   if(
     data.playing &&
     player.getPlayerState() !==
@@ -1315,13 +1626,34 @@ function clock(data){
     player.playVideo();
 
 
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
+    setTimeout(()=>{
+
+      changing=false;
+
+
+      /*
+        Browser may block autoplay.
+      */
+
+      if(
+        player.getPlayerState() !==
+        YT.PlayerState.PLAYING
+      ){
+
+        document
+          .getElementById("enablePlayback")
+          .style.display="inline-block";
+
+      }
+
+    },700);
 
   }
 
+
+  /*
+    Correct pause state.
+  */
 
   if(
     !data.playing &&
@@ -1359,10 +1691,15 @@ function setup(connection){
     "open",
     ()=>{
 
-      status(
-        "Connected!"
-      );
+      connected=true;
 
+
+      connectionStatus();
+
+
+      /*
+        Host sends state.
+      */
 
       if(host){
 
@@ -1370,8 +1707,14 @@ function setup(connection){
 
       }else{
 
+        /*
+          User 2 asks host for current state.
+        */
+
         send({
+
           type:"request"
+
         });
 
       }
@@ -1403,9 +1746,27 @@ function setup(connection){
 
   connection.on(
     "close",
-    ()=>status(
-      "Disconnected"
-    )
+    ()=>{
+
+      connected=false;
+
+      connectionStatus();
+
+    }
+  );
+
+
+  connection.on(
+    "error",
+    ()=>{
+
+      connected=false;
+
+      status(
+        "🔴 Connection error"
+      );
+
+    }
   );
 
 }
@@ -1425,9 +1786,7 @@ if(host){
     "open",
     ()=>{
 
-      status(
-        "Room ready — share the URL"
-      );
+      connectionStatus();
 
     }
   );
@@ -1477,6 +1836,10 @@ function share(){
 
 }
 
+
+/* =====================================================
+   INITIAL RENDER
+===================================================== */
 
 render();
 
