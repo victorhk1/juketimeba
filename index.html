@@ -8,9 +8,10 @@
 <style>
 body{background:#111;color:#eee;font:14px Arial;max-width:700px;margin:auto;padding:20px}
 input,button{padding:9px;background:#222;color:#fff;border:1px solid #444}
-input{width:70%}button{cursor:pointer}
-
-</style>
+input{width:70%}
+button{cursor:pointer}
+.controls{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.item{display:flex;justify-content:space-between;background:#1d1d1d;padding:7px;margin:3px 0}
 </style>
 </head>
 
@@ -18,32 +19,29 @@ input{width:70%}button{cursor:pointer}
 
 <h2>Jukebox</h2>
 
-<div class="player-grid">
-  
-<div style="display: flex; gap: 15px; font-family: sans-serif;">
+<div style="display:flex;gap:15px;font-family:sans-serif;">
 
-  <!-- PLAYER 1 -->
-  <div style="background: #1e1e24; color: #fff; padding: 15px; border-radius: 6px; width: 220px; text-align: center;">
-    <h3 style="margin: 0 0 10px 0; font-size: 16px;">Cocainmonstret #EUW</h3>
-    <a href="https://op.gg/lol/summoners/euw/Cocainmonstret-EUW" target="_blank" 
-       style="display: inline-block; background: #5383e8; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold;">
+  <div style="background:#1e1e24;padding:15px;border-radius:6px;width:220px;text-align:center;">
+    <h3 style="margin:0 0 10px;font-size:16px;">Cocainmonstret #EUW</h3>
+    <a href="https://op.gg/lol/summoners/euw/Cocainmonstret-EUW"
+       target="_blank"
+       style="display:inline-block;background:#5383e8;color:white;padding:8px 12px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:bold;">
        Open OP.GG
     </a>
   </div>
 
-  <!-- PLAYER 2 -->
-  <div style="background: #1e1e24; color: #fff; padding: 15px; border-radius: 6px; width: 220px; text-align: center;">
-    <h3 style="margin: 0 0 10px 0; font-size: 16px;">ElainezBrFfW #EUW</h3>
-    <a href="https://op.gg/lol/summoners/euw/ElainezBrFfW-EUW" target="_blank" 
-       style="display: inline-block; background: #5383e8; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; font-weight: bold;">
+  <div style="background:#1e1e24;padding:15px;border-radius:6px;width:220px;text-align:center;">
+    <h3 style="margin:0 0 10px;font-size:16px;">ElainezBrFfW #EUW</h3>
+    <a href="https://op.gg/lol/summoners/euw/ElainezBrFfW-EUW"
+       target="_blank"
+       style="display:inline-block;background:#5383e8;color:white;padding:8px 12px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:bold;">
        Open OP.GG
     </a>
   </div>
 
 </div>
 
-
-</div>
+<br>
 
 <button onclick="share()">Share room</button>
 <p id="status">Connecting...</p>
@@ -55,8 +53,35 @@ input{width:70%}button{cursor:pointer}
 <input id="volume" type="range" min="0" max="100" value="100">
 </p>
 
-<input id="url" placeholder="Paste YouTube link or search...">
-<button onclick="add()">Add / Search</button>
+<div class="controls">
+
+  <input id="url" placeholder="Paste YouTube link or search...">
+
+  <button onclick="add()">Add / Search</button>
+
+</div>
+
+<div class="controls">
+
+  <button onclick="playBajsolleClassic()">
+    Bajsolle Classics
+  </button>
+
+  <button onclick="randomYouTube()">
+    🎲 Random YouTube
+  </button>
+
+</div>
+
+<div class="controls">
+
+  <input id="classicUrl" placeholder="YouTube URL to add to Classics">
+
+  <button onclick="addClassicAndPlay()">
+    Add Classic + Play Next
+  </button>
+
+</div>
 
 <h3>Queue</h3>
 <div id="queue"></div>
@@ -80,18 +105,144 @@ let current=null;
 let ready=false;
 let changing=false;
 
+
+/* =====================================================
+   BAJSOLLE CLASSICS
+   One click = entire list shuffled
+===================================================== */
+
+const classics=[
+
+  /* 🇮🇳 Indian / Bollywood */
+
+  "7TITTxxtA88",      // Show Me The Thumka
+  "KGn-erOG-Bs",      // Laal Pari
+  "0vK8R2p7v2Q",      // Gaali Gaali
+  "V4Jb5q5Q4nI",      // T-Series Random Mix
+  "g0eO74UmRBs",      // Kal Ho Naa Ho
+
+  /* 🇲🇽 Mexican */
+
+  "Z9Z8x5Q4K0Q",      // Mexican Music Mix
+  "ULxcmMgsxf4",      // La Chona
+
+  /* 🇸🇪 Swedish */
+
+  "eUMlH75Elmw",      // Vindarna viskar mitt namn
+  "AcMUULoT_jk",      // Satellit
+  "BpjamIyoeVQ",      // Gräver guld i USA
+  "4Ml6pJqc_bw",      // Fångad av en stormvind
+
+  /* 🇧🇦 Balkan */
+
+  "W6IAC_4rrHM",      // Kismi
+  "Ntn7PpY0GUU",      // Kismi Zumate
+  "rmMBAJ_moTg",      // Kismi version 2
+  "9x4pGQ9YQ3Y",      // No Escape From Balkan
+  "5h5QW9HqK4E",      // Whiskey Kola Tequila
+
+  /* 🇩🇪 IFA Wartburg */
+
+  "Y0v0H8w3dJY",      // IFA Wartburg FDJ
+  "3V3kX2QJm5E",      // IFA Wartburg Kosmoskost
+
+  /* 🐸 Eurodance */
+
+  "jw8sG7wQp3M",      // Crazy Frog Popcorn
+  "llTYfQI5IAM",      // Dr Bombay Calcutta
+  "6r7F4W3sQ5M",      // Dr Bombay SOS
+  "8V5cQ3Kp0xA",      // Dr Bombay Rice & Curry
+
+  /* 💿 E-Type */
+
+  "8d7e4fY9x2Y",      // This Is The Way
+  "svnE-eQVtPM",      // Angels Crying
+  "HoT1GFrMods",      // Here I Go Again
+
+  /* 🇰🇿 Sadraddin */
+
+  "J4jK8Q9m3Yw",      // Jauap bar ma?
+  "7x7XK4Jqf9A",      // Taxi
+  "Q8p5R2nK7Lc",      // Aiga qarap
+
+  /* 🤠 Country */
+
+  "Jsw8q4fNfBw",      // It's Alright to Be a Redneck
+  "K7c4P8nQ2Xs",      // Fågel Roger
+
+  /* 🎬 Original YouTube videos */
+
+  "hvrUrz6cCY0",      // Nickelback / Creed Mix
+  "DvfX5hbhBnw",      // Cowboys & Indians Mix
+  "i35QJVw0RBM",      // South Park Song
+  "-VILgSsesD0",      // Let's Fighting Love
+  "p_5yt5IX38I",      // Random Mongol Music
+  "Wj4qpfWHFDo",      // Chinese Rap #1
+  "rShjZ_op1V8",      // Chinese Rap #2
+  "mldcDidGJCg",      // Chinese Rap #3
+  "7Snj1uTnGhc",      // 2000s Rock Mix
+  "vJnonxp7YLg",      // 2000s R&B Mix
+
+  /* 🤘 Hardcore Superstar */
+
+  "J7Yq5V9kK4M",      // We Don't Need a Cure
+  "R8mK4pQ7xYs",      // Liberation
+  "F4n8Q2vK6Ys",      // Above the Law
+
+  /* 🤘 Metallica */
+
+  "CD-E-LDc384",      // Enter Sandman
+  "xnKhsTXoKCI",      // Master of Puppets
+  "tAGnKpE4NCI",      // Nothing Else Matters
+
+  /* 🤘 Black Sabbath */
+
+  "0qanF-91aJo",      // Paranoid
+  "LQUXuQ6Zd9w",      // War Pigs
+  "5s7_WbiR79E",      // Iron Man
+
+  /* ⚔️ Blind Guardian */
+
+  "CZ_VFJn2kJM",      // Valhalla
+  "n63UbX5kzAc",      // The Bard's Song
+  "SVg8eP7KPNQ",      // Mirror Mirror
+
+  /* 🎧 Electronic / EDM */
+
+  "1T7o8c5Hq9A",      // Flume - Holding On
+  "Q4m8K2vP7Xs",      // MC Punjab
+  "0FRlJkUSKv8",      // Timmy Trumpet & Dimatik
+
+  /* 🎸 Lynyrd Skynyrd */
+
+  "0LwcvjNJTuM",      // Free Bird
+  "sMmTkKz60W8",      // Simple Man
+
+  /* 👑 Michael Jackson */
+
+  "Zi_XLOBDo_Y",      // Billie Jean
+  "oRdxUFDoQe0",      // Beat It
+  "sOnqjkJTMaA"       // Thriller
+
+];
+
+
 if(host)
   history.replaceState(null,"","#"+room);
 
 
-/* STATUS */
+/* =====================================================
+   STATUS
+===================================================== */
 
 function status(text){
   document.getElementById("status").textContent=text;
 }
 
 
-/* YOUTUBE PLAYER */
+/* =====================================================
+   YOUTUBE PLAYER
+===================================================== */
 
 function onYouTubeIframeAPIReady(){
 
@@ -121,12 +272,17 @@ function onYouTubeIframeAPIReady(){
           ? "Room ready — share the URL"
           : "Connected"
         );
+
       },
+
 
       onStateChange:e=>{
 
         if(changing)
           return;
+
+
+        /* PLAY */
 
         if(
           e.data===
@@ -140,6 +296,9 @@ function onYouTubeIframeAPIReady(){
 
         }
 
+
+        /* PAUSE */
+
         if(
           e.data===
           YT.PlayerState.PAUSED
@@ -152,6 +311,9 @@ function onYouTubeIframeAPIReady(){
 
         }
 
+
+        /* END */
+
         if(
           e.data===
           YT.PlayerState.ENDED &&
@@ -159,31 +321,47 @@ function onYouTubeIframeAPIReady(){
         ){
 
           next();
+
         }
+
       },
+
 
       onError:e=>{
 
         const errors={
+
           2:"Invalid YouTube video.",
+
           5:"YouTube HTML5 player error.",
+
           100:"Video not found or private.",
+
           101:"This video cannot be embedded.",
+
           150:"This video cannot be embedded.",
-          153:"YouTube rejected the player. Make sure the site is running over HTTPS."
+
+          153:"YouTube rejected the player. Use HTTPS."
+
         };
 
         status(
           errors[e.data] ||
           "YouTube error: "+e.data
         );
+
       }
+
     }
+
   });
+
 }
 
 
-/* GET VIDEO ID FROM URL */
+/* =====================================================
+   GET YOUTUBE VIDEO ID
+===================================================== */
 
 function getID(text){
 
@@ -191,30 +369,44 @@ function getID(text){
 
     let u=new URL(text);
 
+
     if(
       u.hostname==="youtu.be" ||
       u.hostname==="www.youtu.be"
-    )
+    ){
+
       return u.pathname.slice(1);
+
+    }
+
 
     if(
       u.hostname.includes("youtube.com")
     ){
 
-      if(u.searchParams.get("v"))
+      if(
+        u.searchParams.get("v")
+      ){
+
         return u.searchParams.get("v");
 
-      let parts=u.pathname.split("/");
+      }
 
-      let type=
-        parts[1];
+
+      let parts=
+        u.pathname.split("/");
+
 
       if(
-        type==="shorts" ||
-        type==="embed" ||
-        type==="live"
-      )
+        parts[1]==="shorts" ||
+        parts[1]==="embed" ||
+        parts[1]==="live"
+      ){
+
         return parts[2];
+
+      }
+
     }
 
   }catch{}
@@ -223,7 +415,9 @@ function getID(text){
 }
 
 
-/* ADD / SEARCH */
+/* =====================================================
+   NORMAL ADD
+===================================================== */
 
 function add(){
 
@@ -233,13 +427,14 @@ function add(){
   let text=
     input.value.trim();
 
+
   if(!text)
     return;
 
-  let id=getID(text);
 
+  let id=
+    getID(text);
 
-  /* URL */
 
   if(id){
 
@@ -247,8 +442,10 @@ function add(){
 
       queue.push(id);
 
+
       if(!current)
         next();
+
 
       render();
       sync();
@@ -259,15 +456,16 @@ function add(){
         type:"add",
         id:id
       });
+
     }
+
 
     input.value="";
 
     return;
+
   }
 
-
-  /* SEARCH */
 
   window.open(
 
@@ -275,34 +473,197 @@ function add(){
     encodeURIComponent(text),
 
     "_blank"
+
   );
+
 }
 
 
-/* QUEUE */
+/* =====================================================
+   BAJSOLLE CLASSICS
+===================================================== */
 
-function remove(index){
+function playBajsolleClassic(){
 
   if(!host){
 
     send({
-      type:"remove",
-      index:index
+      type:"classic"
     });
 
+    status(
+      "Starting Bajsolle Classics..."
+    );
+
     return;
+
   }
 
 
-  let wasCurrent=
-    queue[index]===current;
+  startClassicShuffle();
 
-  queue.splice(index,1);
+}
 
 
-  if(wasCurrent){
+/* =====================================================
+   SHUFFLE ENTIRE CLASSICS LIST
+===================================================== */
 
-    current=null;
+function startClassicShuffle(){
+
+  /*
+    Copy the list.
+    The original Classics list stays unchanged.
+  */
+
+  let shuffled=
+    [...classics];
+
+
+  /*
+    Fisher-Yates shuffle.
+    This creates a randomized order
+    without duplicates.
+  */
+
+  for(
+    let i=shuffled.length-1;
+    i>0;
+    i--
+  ){
+
+    let j=
+      Math.floor(
+        Math.random()*(i+1)
+      );
+
+
+    [
+      shuffled[i],
+      shuffled[j]
+    ]=[
+      shuffled[j],
+      shuffled[i]
+    ];
+
+  }
+
+
+  /*
+    Replace the queue with the
+    entire randomized Classics list.
+  */
+
+  queue=[
+    ...shuffled
+  ];
+
+
+  /*
+    Start the first song.
+  */
+
+  current=null;
+
+  next();
+
+
+  status(
+    "🎵 Bajsolle Classics — "+
+    shuffled.length+
+    " songs shuffled"
+  );
+
+}
+
+
+/* =====================================================
+   ADD CUSTOM CLASSIC
+===================================================== */
+
+function addClassicAndPlay(){
+
+  let input=
+    document.getElementById("classicUrl");
+
+
+  let id=
+    getID(
+      input.value.trim()
+    );
+
+
+  if(!id){
+
+    status(
+      "Please enter a valid YouTube URL."
+    );
+
+    return;
+
+  }
+
+
+  if(!host){
+
+    send({
+
+      type:"classicAdd",
+
+      id:id
+
+    });
+
+    input.value="";
+
+    return;
+
+  }
+
+
+  addClassicAndPlayById(id);
+
+  input.value="";
+
+}
+
+
+/* =====================================================
+   ADD CUSTOM CLASSIC BY ID
+===================================================== */
+
+function addClassicAndPlayById(id){
+
+  /*
+    Add it to the Classics pool
+    if it isn't already there.
+  */
+
+  if(
+    !classics.includes(id)
+  ){
+
+    classics.push(id);
+
+  }
+
+
+  /*
+    Add it immediately after
+    the currently playing song.
+  */
+
+  if(current){
+
+    queue.splice(
+      1,
+      0,
+      id
+    );
+
+  }else{
+
+    queue.push(id);
 
     next();
 
@@ -311,52 +672,202 @@ function remove(index){
 
   render();
   sync();
+
+
+  status(
+    "Classic added — playing next."
+  );
+
 }
 
 
+/* =====================================================
+   RANDOM YOUTUBE
+===================================================== */
+
+function randomYouTube(){
+
+  const searches=[
+
+    "random music",
+    "random rock music",
+    "random country music",
+    "random pop music",
+    "random electronic music",
+    "random metal music",
+    "random indian music",
+    "random mexican music",
+    "random swedish music",
+    "random balkan music",
+    "random 90s music",
+    "random 2000s music"
+
+  ];
+
+
+  let query=
+    searches[
+      Math.floor(
+        Math.random()*searches.length
+      )
+    ];
+
+
+  window.open(
+
+    "https://www.youtube.com/results?search_query="+
+    encodeURIComponent(query),
+
+    "_blank"
+
+  );
+
+}
+
+
+/* =====================================================
+   REMOVE
+===================================================== */
+
+function remove(index){
+
+  if(!host){
+
+    send({
+
+      type:"remove",
+
+      index:index
+
+    });
+
+    return;
+
+  }
+
+
+  if(
+    index<0 ||
+    index>=queue.length
+  )
+    return;
+
+
+  let wasCurrent=
+    queue[index]===current;
+
+
+  queue.splice(
+    index,
+    1
+  );
+
+
+  if(wasCurrent){
+
+    current=null;
+
+    next();
+
+    return;
+
+  }
+
+
+  render();
+  sync();
+
+}
+
+
+/* =====================================================
+   NEXT
+===================================================== */
+
 function next(){
+
+  /*
+    If the current song is at the
+    front of the queue, remove it.
+
+    This happens when a song finishes.
+  */
+
+  if(
+    current &&
+    queue[0]===current
+  ){
+
+    queue.shift();
+
+  }
+
+
+  /*
+    Nothing left.
+  */
 
   if(!queue.length){
 
     current=null;
 
+
     if(ready)
       player.stopVideo();
+
 
     render();
     sync();
 
     return;
+
   }
 
 
-  current=queue[0];
+  /*
+    Select the next song.
+  */
+
+  current=
+    queue[0];
+
 
   changing=true;
+
 
   player.loadVideoById(
     current
   );
 
+
   setTimeout(
     ()=>changing=false,
-    500
+    700
   );
+
 
   render();
   sync();
+
 }
 
 
+/* =====================================================
+   RENDER QUEUE
+===================================================== */
+
 function render(){
 
-  document.getElementById("queue").innerHTML=
+  document
+    .getElementById("queue")
+    .innerHTML=
 
     queue.map((id,i)=>`
 
       <div class="item">
 
         <span>
+          ${i===0 && id===current ? "▶ " : ""}
           ${i+1}. ${id}
         </span>
 
@@ -369,10 +880,13 @@ function render(){
       </div>
 
     `).join("");
+
 }
 
 
-/* VOLUME */
+/* =====================================================
+   VOLUME
+===================================================== */
 
 document
   .getElementById("volume")
@@ -381,29 +895,43 @@ document
     let value=
       Number(this.value);
 
+
     if(ready)
       player.setVolume(value);
 
+
     send({
+
       type:"volume",
+
       volume:value
+
     });
+
   };
 
 
-/* SEND */
+/* =====================================================
+   SEND
+===================================================== */
 
 function send(data){
 
   if(
     conn &&
     conn.open
-  )
+  ){
+
     conn.send(data);
+
+  }
+
 }
 
 
-/* SEND FULL STATE */
+/* =====================================================
+   FULL STATE SYNC
+===================================================== */
 
 function sync(){
 
@@ -430,89 +958,111 @@ function sync(){
       ready
       ? player.getVolume()
       : 100
+
   });
+
 }
 
 
-/* RECEIVE DATA */
+/* =====================================================
+   RECEIVE DATA
+===================================================== */
 
 function apply(data){
 
 
   /* FULL STATE */
 
-  if(data.type==="state"){
+  if(
+    data.type==="state"
+  ){
 
     queue=
       data.queue || [];
 
+
     render();
 
 
-    if(data.volume!=null){
+    if(
+      data.volume!=null
+    ){
 
       player.setVolume(
         data.volume
       );
 
+
       document
         .getElementById("volume")
-        .value=data.volume;
+        .value=
+        data.volume;
+
     }
 
 
     if(
-      data.current !==
-      current
+      data.current!==current
     ){
 
       current=
         data.current;
 
+
       if(current){
 
         changing=true;
+
 
         player.loadVideoById(
           current,
           data.time || 0
         );
 
+
         setTimeout(()=>{
 
           changing=false;
 
+
           if(data.playing)
             player.playVideo();
 
-        },500);
+        },700);
+
       }
 
     }else if(current){
 
       changing=true;
 
+
       player.seekTo(
         data.time || 0,
         true
       );
+
 
       if(data.playing)
         player.playVideo();
       else
         player.pauseVideo();
 
+
       setTimeout(
         ()=>changing=false,
         300
       );
+
     }
 
+
     return;
+
   }
 
 
-  /* ADD */
+  /* NORMAL ADD */
 
   if(
     data.type==="add" &&
@@ -523,13 +1073,16 @@ function apply(data){
       data.id
     );
 
+
     if(!current)
       next();
+
 
     render();
     sync();
 
     return;
+
   }
 
 
@@ -545,66 +1098,117 @@ function apply(data){
     );
 
     return;
+
+  }
+
+
+  /* BAJSOLLE CLASSICS */
+
+  if(
+    data.type==="classic" &&
+    host
+  ){
+
+    startClassicShuffle();
+
+    return;
+
+  }
+
+
+  /* CUSTOM CLASSIC */
+
+  if(
+    data.type==="classicAdd" &&
+    host
+  ){
+
+    addClassicAndPlayById(
+      data.id
+    );
+
+    return;
+
   }
 
 
   /* PLAY */
 
-  if(data.type==="play"){
+  if(
+    data.type==="play"
+  ){
 
     changing=true;
+
 
     player.seekTo(
       data.time,
       true
     );
 
+
     player.playVideo();
+
 
     setTimeout(
       ()=>changing=false,
       300
     );
 
+
     return;
+
   }
 
 
   /* PAUSE */
 
-  if(data.type==="pause"){
+  if(
+    data.type==="pause"
+  ){
 
     changing=true;
+
 
     player.seekTo(
       data.time,
       true
     );
 
+
     player.pauseVideo();
+
 
     setTimeout(
       ()=>changing=false,
       300
     );
 
+
     return;
+
   }
 
 
   /* VOLUME */
 
-  if(data.type==="volume"){
+  if(
+    data.type==="volume"
+  ){
 
     player.setVolume(
       data.volume
     );
 
+
     document
       .getElementById("volume")
-      .value=data.volume;
+      .value=
+      data.volume;
+
 
     return;
+
   }
 
 
@@ -616,16 +1220,15 @@ function apply(data){
   ){
 
     sync();
+
   }
+
 }
 
 
-/* DRIFT CORRECTION */
-
-/*
-   Host sends its exact playback
-   position once every second.
-*/
+/* =====================================================
+   CLOCK / DRIFT CORRECTION
+===================================================== */
 
 setInterval(()=>{
 
@@ -649,12 +1252,15 @@ setInterval(()=>{
     playing:
       player.getPlayerState()===
       YT.PlayerState.PLAYING
+
   });
 
 },1000);
 
 
-/* RECEIVE CLOCK */
+/* =====================================================
+   RECEIVE CLOCK
+===================================================== */
 
 function clock(data){
 
@@ -669,31 +1275,33 @@ function clock(data){
   let local=
     player.getCurrentTime();
 
+
   let drift=
     Math.abs(
       local-data.time
     );
 
 
-  /* Correct significant drift */
-
-  if(drift>0.5){
+  if(
+    drift>0.5
+  ){
 
     changing=true;
+
 
     player.seekTo(
       data.time,
       true
     );
 
+
     setTimeout(
       ()=>changing=false,
       300
     );
+
   }
 
-
-  /* Correct play state */
 
   if(
     data.playing &&
@@ -703,12 +1311,15 @@ function clock(data){
 
     changing=true;
 
+
     player.playVideo();
+
 
     setTimeout(
       ()=>changing=false,
       300
     );
+
   }
 
 
@@ -720,35 +1331,51 @@ function clock(data){
 
     changing=true;
 
+
     player.pauseVideo();
+
 
     setTimeout(
       ()=>changing=false,
       300
     );
+
   }
+
 }
 
 
-/* CONNECTION */
+/* =====================================================
+   CONNECTION
+===================================================== */
 
 function setup(connection){
 
-  conn=connection;
+  conn=
+    connection;
 
 
   connection.on(
     "open",
     ()=>{
 
-      status("Connected!");
+      status(
+        "Connected!"
+      );
 
-      if(host)
+
+      if(host){
+
         sync();
-      else
+
+      }else{
+
         send({
           type:"request"
         });
+
+      }
+
     }
   );
 
@@ -760,10 +1387,15 @@ function setup(connection){
       if(
         data.type===
         "clock"
-      )
+      ){
+
         clock(data);
-      else
+
+      }else{
+
         apply(data);
+
+      }
 
     }
   );
@@ -775,45 +1407,61 @@ function setup(connection){
       "Disconnected"
     )
   );
+
 }
 
 
-/* PEER */
+/* =====================================================
+   PEER
+===================================================== */
 
 if(host){
 
-  peer=new Peer(room);
+  peer=
+    new Peer(room);
+
 
   peer.on(
     "open",
     ()=>{
+
       status(
         "Room ready — share the URL"
       );
+
     }
   );
+
 
   peer.on(
     "connection",
     setup
   );
 
+
 }else{
 
-  peer=new Peer();
+  peer=
+    new Peer();
+
 
   peer.on(
     "open",
     ()=>{
+
       setup(
         peer.connect(room)
       );
+
     }
   );
+
 }
 
 
-/* SHARE */
+/* =====================================================
+   SHARE
+===================================================== */
 
 function share(){
 
@@ -822,14 +1470,17 @@ function share(){
       location.href
     );
 
+
   status(
     "Room URL copied!"
   );
+
 }
 
 
 render();
 
 </script>
+
 </body>
 </html>
