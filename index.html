@@ -8,10 +8,11 @@
 <style>
 body{background:#111;color:#eee;font:14px Arial;max-width:700px;margin:auto;padding:20px}
 input,button{padding:9px;background:#222;color:#fff;border:1px solid #444}
-input{width:70%}button{cursor:pointer}
+input{width:70%}
+button{cursor:pointer}
 .controls{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
 .item{display:flex;justify-content:space-between;background:#1d1d1d;padding:7px;margin:3px 0}
-#enablePlayback{background:#176b32}
+#player{margin-top:10px}
 </style>
 </head>
 
@@ -46,10 +47,11 @@ input{width:70%}button{cursor:pointer}
 <button onclick="share()">Share room</button>
 
 <p id="status">Connecting...</p>
+<p id="connection">🟡 Connecting...</p>
 
 <button id="enablePlayback"
         onclick="enablePlayback()"
-        style="display:none">
+        style="display:none;margin-bottom:10px;">
   ▶ Enable Playback
 </button>
 
@@ -61,11 +63,8 @@ input{width:70%}button{cursor:pointer}
 </p>
 
 <div class="controls">
-
   <input id="url" placeholder="Paste YouTube link or search...">
-
   <button onclick="add()">Add / Search</button>
-
 </div>
 
 <div class="controls">
@@ -91,7 +90,6 @@ input{width:70%}button{cursor:pointer}
 </div>
 
 <h3>Queue</h3>
-
 <div id="queue"></div>
 
 
@@ -101,10 +99,12 @@ input{width:70%}button{cursor:pointer}
 <script>
 
 /* =====================================================
-   ROOM
+   BASIC STATE
 ===================================================== */
 
-let player,peer,conn;
+let player=null;
+let peer=null;
+let conn=null;
 
 let host=!location.hash;
 
@@ -117,9 +117,34 @@ let current=null;
 
 let ready=false;
 let changing=false;
-let connected=false;
 
-let skipInProgress=false;
+let playbackEnabled=host;
+
+let pendingState=null;
+
+let lastErrorVideo=null;
+let errorTimer=null;
+
+
+if(host)
+  history.replaceState(null,"","#"+room);
+
+
+/* =====================================================
+   STATUS
+===================================================== */
+
+function status(text){
+  document.getElementById("status").textContent=text;
+}
+
+
+function connectionStatus(text,color){
+
+  document.getElementById("connection").textContent=
+    color+" "+text;
+
+}
 
 
 /* =====================================================
@@ -185,7 +210,7 @@ const classics=[
   "Jsw8q4fNfBw",
   "K7c4P8nQ2Xs",
 
-  /* 🎬 Original YouTube videos */
+  /* 🎬 Original videos */
 
   "hvrUrz6cCY0",
   "DvfX5hbhBnw",
@@ -242,48 +267,8 @@ const classics=[
 ];
 
 
-if(host)
-  history.replaceState(null,"","#"+room);
-
-
 /* =====================================================
-   STATUS
-===================================================== */
-
-function status(text){
-  document.getElementById("status").textContent=text;
-}
-
-
-/* =====================================================
-   CONNECTION STATUS
-===================================================== */
-
-function connectionStatus(){
-
-  if(host){
-
-    status(
-      conn && conn.open
-      ? "🟢 Connected — host"
-      : "🟢 Room ready — share the URL"
-    );
-
-  }else{
-
-    status(
-      connected
-      ? "🟢 Connected — synced"
-      : "🟡 Connecting..."
-    );
-
-  }
-
-}
-
-
-/* =====================================================
-   YOUTUBE
+   YOUTUBE PLAYER
 ===================================================== */
 
 function onYouTubeIframeAPIReady(){
@@ -293,11 +278,17 @@ function onYouTubeIframeAPIReady(){
     width:"100%",
     height:"400",
 
+    /*
+      Start with a real blank/known player.
+      The actual synchronized video is loaded later.
+    */
+
     videoId:"",
 
     playerVars:{
       playsinline:1,
       controls:1,
+      rel:0,
       origin:location.origin
     },
 
@@ -309,62 +300,112 @@ function onYouTubeIframeAPIReady(){
 
         player.setVolume(100);
 
-        connectionStatus();
+        if(host){
+
+          status(
+            "Room ready — share the URL"
+          );
+
+          connectionStatus(
+            "Host",
+            "🟢"
+          );
+
+        }else{
+
+          connectionStatus(
+            "Connected — waiting for sync",
+            "🟢"
+          );
+
+          /*
+            Ask host for the current state
+          */
+
+          send({
+            type:"request"
+          });
+
+        }
+
+        /*
+          If a state arrived before YouTube
+          was ready, apply it now.
+        */
+
+        if(pendingState){
+
+          let state=
+            pendingState;
+
+          pendingState=null;
+
+          applyState(state);
+
+        }
 
       },
 
 
       onStateChange:e=>{
 
+        /*
+          Ignore player events caused by
+          our own synchronization commands.
+        */
+
         if(changing)
           return;
 
 
-        /* PLAY */
+        /*
+          HOST controls the room.
+          Users can still use play/pause,
+          but the host broadcasts the state.
+        */
 
         if(
           e.data===
           YT.PlayerState.PLAYING
         ){
 
-          send({
+          if(host){
 
-            type:"play",
+            send({
+              type:"play",
+              time:player.getCurrentTime()
+            });
 
-            time:
-              player.getCurrentTime()
-
-          });
+          }
 
         }
 
-
-        /* PAUSE */
 
         if(
           e.data===
           YT.PlayerState.PAUSED
         ){
 
-          send({
+          if(host){
 
-            type:"pause",
+            send({
+              type:"pause",
+              time:player.getCurrentTime()
+            });
 
-            time:
-              player.getCurrentTime()
-
-          });
+          }
 
         }
 
 
-        /* END */
+        /*
+          Song finished.
+        */
 
         if(
           e.data===
           YT.PlayerState.ENDED &&
-          host &&
-          !skipInProgress
+          host
         ){
 
           next();
@@ -374,39 +415,52 @@ function onYouTubeIframeAPIReady(){
       },
 
 
-      /* =================================================
-         AUTOMATICALLY SKIP BAD YOUTUBE VIDEOS
-      ================================================= */
+      /*
+        Automatically skip videos that
+        YouTube reports as unavailable.
+      */
 
       onError:e=>{
 
-        const bad=[
+        if(!host)
+          return;
 
-          2,    // invalid ID
-          5,    // HTML5 error
-          100,  // unavailable/deleted/private
-          101,  // embedding disabled
-          150,  // embedding disabled
-          153   // player request error
+        if(!current)
+          return;
 
-        ];
+        /*
+          Prevent duplicate error handling.
+        */
 
+        if(lastErrorVideo===current)
+          return;
 
-        if(
-          host &&
-          current &&
-          bad.includes(e.data)
-        ){
+        lastErrorVideo=current;
 
-          skipUnavailable();
+        clearTimeout(errorTimer);
 
-        }else{
+        errorTimer=setTimeout(()=>{
 
-          status(
-            "YouTube error: "+e.data
-          );
+          if(
+            current &&
+            queue[0]===current
+          ){
 
-        }
+            status(
+              "Skipping unavailable YouTube video..."
+            );
+
+            queue.shift();
+
+            current=null;
+
+            next();
+
+          }
+
+          lastErrorVideo=null;
+
+        },300);
 
       }
 
@@ -418,68 +472,7 @@ function onYouTubeIframeAPIReady(){
 
 
 /* =====================================================
-   SKIP UNAVAILABLE VIDEO
-===================================================== */
-
-function skipUnavailable(){
-
-  if(skipInProgress)
-    return;
-
-  skipInProgress=true;
-
-
-  status(
-    "⏭️ Skipping unavailable video..."
-  );
-
-
-  /*
-    Remove current song from queue.
-  */
-
-  if(
-    queue.length &&
-    queue[0]===current
-  ){
-
-    queue.shift();
-
-  }else{
-
-    let i=
-      queue.indexOf(current);
-
-    if(i>=0)
-      queue.splice(i,1);
-
-  }
-
-
-  current=null;
-
-
-  render();
-
-
-  /*
-    Give YouTube a moment before loading
-    the next video.
-  */
-
-  setTimeout(()=>{
-
-    skipInProgress=false;
-
-    next();
-
-  },300);
-
-}
-
-
-/* =====================================================
-   YOUTUBE ID
+   GET YOUTUBE ID
 ===================================================== */
 
 function getID(text){
@@ -503,13 +496,11 @@ function getID(text){
       u.hostname.includes("youtube.com")
     ){
 
-      if(
-        u.searchParams.get("v")
-      ){
+      let v=
+        u.searchParams.get("v");
 
-        return u.searchParams.get("v");
-
-      }
+      if(v)
+        return v;
 
 
       let parts=
@@ -536,7 +527,7 @@ function getID(text){
 
 
 /* =====================================================
-   ADD NORMAL SONG
+   NORMAL ADD
 ===================================================== */
 
 function add(){
@@ -562,33 +553,17 @@ function add(){
 
       queue.push(id);
 
-
       if(!current)
         next();
-
 
       render();
       sync();
 
     }else{
 
-      if(!connected){
-
-        status(
-          "Not connected yet."
-        );
-
-        return;
-
-      }
-
-
       send({
-
         type:"add",
-
         id:id
-
       });
 
     }
@@ -600,6 +575,12 @@ function add(){
 
   }
 
+
+  /*
+    Search still opens YouTube search.
+    A normal HTML page cannot reliably select
+    a random YouTube result without the API.
+  */
 
   window.open(
 
@@ -614,17 +595,17 @@ function add(){
 
 
 /* =====================================================
-   BAJSOLLE BUTTON
+   BAJSOLLE CLASSICS
 ===================================================== */
 
 function playBajsolleClassic(){
 
   if(!host){
 
-    if(!connected){
+    if(!conn || !conn.open){
 
       status(
-        "Not connected yet."
+        "Not connected to host."
       );
 
       return;
@@ -636,11 +617,9 @@ function playBajsolleClassic(){
       type:"classic"
     });
 
-
     status(
-      "🎵 Starting Bajsolle Classics..."
+      "Starting Bajsolle Classics..."
     );
-
 
     return;
 
@@ -658,11 +637,17 @@ function playBajsolleClassic(){
 
 function startClassicShuffle(){
 
+  /*
+    Create a fresh copy.
+  */
+
   let shuffled=
     [...classics];
 
 
-  /* Fisher-Yates */
+  /*
+    Fisher-Yates shuffle.
+  */
 
   for(
     let i=shuffled.length-1;
@@ -688,20 +673,15 @@ function startClassicShuffle(){
 
 
   /*
-    Replace entire queue.
-    This means one click starts
-    a complete randomized Classics
-    playlist.
+    Replace queue with the
+    complete randomized Classics list.
   */
 
-  queue=
-    shuffled;
-
+  queue=[
+    ...shuffled
+  ];
 
   current=null;
-
-
-  render();
 
 
   next();
@@ -717,7 +697,7 @@ function startClassicShuffle(){
 
 
 /* =====================================================
-   CUSTOM CLASSIC
+   ADD CUSTOM CLASSIC
 ===================================================== */
 
 function addClassicAndPlay(){
@@ -745,10 +725,10 @@ function addClassicAndPlay(){
 
   if(!host){
 
-    if(!connected){
+    if(!conn || !conn.open){
 
       status(
-        "Not connected yet."
+        "Not connected to host."
       );
 
       return;
@@ -780,7 +760,7 @@ function addClassicAndPlay(){
 
 
 /* =====================================================
-   CUSTOM CLASSIC -> NEXT
+   ADD CUSTOM CLASSIC BY ID
 ===================================================== */
 
 function addClassicAndPlayById(id){
@@ -795,8 +775,8 @@ function addClassicAndPlayById(id){
 
 
   /*
-    Put the new Classic immediately
-    after the currently playing song.
+    Put it directly after the
+    currently playing song.
   */
 
   if(current){
@@ -879,8 +859,15 @@ function remove(index){
 
   if(!host){
 
-    if(!connected)
+    if(!conn || !conn.open){
+
+      status(
+        "Not connected to host."
+      );
+
       return;
+
+    }
 
 
     send({
@@ -936,12 +923,13 @@ function remove(index){
 
 function next(){
 
-  if(skipInProgress)
-    return;
-
-
   /*
-    Remove the song that just finished.
+    If the finished/current song is still
+    at the front, remove it.
+
+    Do NOT remove it when current=null,
+    because that means we're starting
+    a new queue.
   */
 
   if(
@@ -955,7 +943,7 @@ function next(){
 
 
   /*
-    Queue empty.
+    No songs left.
   */
 
   if(!queue.length){
@@ -963,361 +951,14 @@ function next(){
     current=null;
 
 
-    if(ready)
-      player.stopVideo();
-
-
-    render();
-    sync();
-
-
-    status(
-      "Queue empty."
-    );
-
-
-    return;
-
-  }
-
-
-  /*
-    First item is now the next song.
-  */
-
-  current=
-    queue[0];
-
-
-  changing=true;
-
-
-  player.loadVideoById(
-    current
-  );
-
-
-  render();
-  sync();
-
-
-  /*
-    YouTube normally starts the video
-    automatically for the host because
-    the action originated from the user's
-    interaction / existing playback.
-  */
-
-  setTimeout(()=>{
-
-    changing=false;
-
-  },800);
-
-}
-
-
-/* =====================================================
-   RENDER
-===================================================== */
-
-function render(){
-
-  document
-    .getElementById("queue")
-    .innerHTML=
-
-    queue.map((id,i)=>`
-
-      <div class="item">
-
-        <span>
-
-          ${
-            i===0 &&
-            id===current
-            ? "▶ "
-            : ""
-          }
-
-          ${i+1}. ${id}
-
-        </span>
-
-        <button
-          onclick="remove(${i})"
-        >
-          ×
-        </button>
-
-      </div>
-
-    `).join("");
-
-}
-
-
-/* =====================================================
-   ENABLE PLAYBACK
-===================================================== */
-
-function enablePlayback(){
-
-  if(!ready)
-    return;
-
-
-  /*
-    This is a real user interaction,
-    allowing the browser to permit
-    YouTube playback.
-  */
-
-  changing=true;
-
-
-  if(current){
-
-    player.playVideo();
-
-  }
-
-
-  setTimeout(()=>{
-
-    changing=false;
-
-  },500);
-
-
-  document
-    .getElementById("enablePlayback")
-    .style.display="none";
-
-
-  if(connected){
-
-    send({
-
-      type:"request"
-
-    });
-
-  }
-
-}
-
-
-/* =====================================================
-   VOLUME
-===================================================== */
-
-document
-  .getElementById("volume")
-  .oninput=function(){
-
-    let value=
-      Number(this.value);
-
-
-    if(ready)
-      player.setVolume(value);
-
-
-    send({
-
-      type:"volume",
-
-      volume:value
-
-    });
-
-  };
-
-
-/* =====================================================
-   SEND
-===================================================== */
-
-function send(data){
-
-  if(
-    conn &&
-    conn.open
-  ){
-
-    conn.send(data);
-
-  }
-
-}
-
-
-/* =====================================================
-   FULL STATE
-===================================================== */
-
-function sync(){
-
-  if(
-    !host ||
-    !conn ||
-    !conn.open
-  )
-    return;
-
-
-  send({
-
-    type:"state",
-
-    queue:[
-      ...queue
-    ],
-
-    current:current,
-
-    time:
-      ready && current
-      ? player.getCurrentTime()
-      : 0,
-
-    playing:
+    if(
       ready &&
-      current &&
-      player.getPlayerState()===
-      YT.PlayerState.PLAYING,
-
-    volume:
-      ready
-      ? player.getVolume()
-      : 100
-
-  });
-
-}
-
-
-/* =====================================================
-   APPLY STATE
-===================================================== */
-
-function apply(data){
-
-
-  /* =================================================
-     FULL STATE
-  ================================================= */
-
-  if(
-    data.type==="state"
-  ){
-
-    queue=
-      data.queue || [];
-
-
-    render();
-
-
-    if(
-      data.volume!=null
+      player
     ){
-
-      player.setVolume(
-        data.volume
-      );
-
-
-      document
-        .getElementById("volume")
-        .value=
-        data.volume;
-
-    }
-
-
-    /*
-      Different song.
-    */
-
-    if(
-      data.current!==current
-    ){
-
-      current=
-        data.current;
-
-
-      if(current){
-
-        changing=true;
-
-
-        player.loadVideoById(
-          current,
-          data.time || 0
-        );
-
-
-        setTimeout(()=>{
-
-          changing=false;
-
-
-          /*
-            Try autoplay.
-            If the browser blocks it,
-            the user can click Enable Playback.
-          */
-
-          if(data.playing){
-
-            player.playVideo();
-
-
-            setTimeout(()=>{
-
-              if(
-                player.getPlayerState() !==
-                YT.PlayerState.PLAYING
-              ){
-
-                document
-                  .getElementById("enablePlayback")
-                  .style.display="inline-block";
-
-              }
-
-            },1000);
-
-          }
-
-        },800);
-
-      }
-
-    }else if(current){
 
       changing=true;
 
-
-      player.seekTo(
-        data.time || 0,
-        true
-      );
-
-
-      if(data.playing){
-
-        player.playVideo();
-
-      }else{
-
-        player.pauseVideo();
-
-      }
-
+      player.stopVideo();
 
       setTimeout(
         ()=>changing=false,
@@ -1327,523 +968,81 @@ function apply(data){
     }
 
 
-    return;
-
-  }
-
-
-  /* =================================================
-     NORMAL ADD
-  ================================================= */
-
-  if(
-    data.type==="add" &&
-    host
-  ){
-
-    queue.push(
-      data.id
-    );
-
-
-    if(!current)
-      next();
-
-
     render();
     sync();
 
-
     return;
 
   }
 
 
-  /* =================================================
-     REMOVE
-  ================================================= */
+  /*
+    Next song is always queue[0].
+  */
 
-  if(
-    data.type==="remove" &&
-    host
-  ){
-
-    remove(
-      data.index
-    );
+  current=
+    queue[0];
 
 
-    return;
-
-  }
+  render();
 
 
-  /* =================================================
-     BAJSOLLE CLASSICS
-  ================================================= */
-
-  if(
-    data.type==="classic" &&
-    host
-  ){
-
-    startClassicShuffle();
-
-
-    return;
-
-  }
-
-
-  /* =================================================
-     CUSTOM CLASSIC
-  ================================================= */
-
-  if(
-    data.type==="classicAdd" &&
-    host
-  ){
-
-    addClassicAndPlayById(
-      data.id
-    );
-
-
-    return;
-
-  }
-
-
-  /* =================================================
-     PLAY
-  ================================================= */
-
-  if(
-    data.type==="play"
-  ){
-
-    if(!ready)
-      return;
-
-
-    changing=true;
-
-
-    player.seekTo(
-      data.time,
-      true
-    );
-
-
-    player.playVideo();
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
-
-    return;
-
-  }
-
-
-  /* =================================================
-     PAUSE
-  ================================================= */
-
-  if(
-    data.type==="pause"
-  ){
-
-    if(!ready)
-      return;
-
-
-    changing=true;
-
-
-    player.seekTo(
-      data.time,
-      true
-    );
-
-
-    player.pauseVideo();
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
-
-    return;
-
-  }
-
-
-  /* =================================================
-     VOLUME
-  ================================================= */
-
-  if(
-    data.type==="volume"
-  ){
-
-    if(!ready)
-      return;
-
-
-    player.setVolume(
-      data.volume
-    );
-
-
-    document
-      .getElementById("volume")
-      .value=
-      data.volume;
-
-
-    return;
-
-  }
-
-
-  /* =================================================
-     STATE REQUEST
-  ================================================= */
-
-  if(
-    data.type==="request" &&
-    host
-  ){
+  if(!ready || !player){
 
     sync();
 
+    return;
+
   }
+
+
+  loadCurrent(0);
 
 }
 
 
 /* =====================================================
-   DRIFT CORRECTION
+   LOAD CURRENT VIDEO
 ===================================================== */
 
-setInterval(()=>{
+function loadCurrent(time){
 
   if(
-    !host ||
-    !conn ||
-    !conn.open ||
     !ready ||
+    !player ||
     !current
   )
     return;
 
 
-  send({
+  changing=true;
 
-    type:"clock",
 
-    time:
-      player.getCurrentTime(),
+  player.loadVideoById({
 
-    playing:
-      player.getPlayerState()===
-      YT.PlayerState.PLAYING
+    videoId:current,
+
+    startSeconds:
+      Number(time)||0
 
   });
 
-},1000);
-
-
-/* =====================================================
-   RECEIVE CLOCK
-===================================================== */
-
-function clock(data){
-
-  if(
-    host ||
-    !ready ||
-    !current ||
-    !connected
-  )
-    return;
-
-
-  let local=
-    player.getCurrentTime();
-
-
-  let drift=
-    Math.abs(
-      local-data.time
-    );
-
 
   /*
-    Correct significant drift.
+    Keep changing=true long enough to ignore
+    the load event caused by our command.
   */
 
-  if(
-    drift>0.5
-  ){
+  setTimeout(()=>{
 
-    changing=true;
+    changing=false;
 
-
-    player.seekTo(
-      data.time,
-      true
-    );
+  },1000);
 
 
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
-  }
-
-
-  /*
-    Correct play state.
-  */
-
-  if(
-    data.playing &&
-    player.getPlayerState() !==
-    YT.PlayerState.PLAYING
-  ){
-
-    changing=true;
-
-
-    player.playVideo();
-
-
-    setTimeout(()=>{
-
-      changing=false;
-
-
-      /*
-        Browser may block autoplay.
-      */
-
-      if(
-        player.getPlayerState() !==
-        YT.PlayerState.PLAYING
-      ){
-
-        document
-          .getElementById("enablePlayback")
-          .style.display="inline-block";
-
-      }
-
-    },700);
-
-  }
-
-
-  /*
-    Correct pause state.
-  */
-
-  if(
-    !data.playing &&
-    player.getPlayerState()===
-    YT.PlayerState.PLAYING
-  ){
-
-    changing=true;
-
-
-    player.pauseVideo();
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
-  }
+  sync();
 
 }
 
 
 /* =====================================================
-   CONNECTION
-===================================================== */
-
-function setup(connection){
-
-  conn=
-    connection;
-
-
-  connection.on(
-    "open",
-    ()=>{
-
-      connected=true;
-
-
-      connectionStatus();
-
-
-      /*
-        Host sends state.
-      */
-
-      if(host){
-
-        sync();
-
-      }else{
-
-        /*
-          User 2 asks host for current state.
-        */
-
-        send({
-
-          type:"request"
-
-        });
-
-      }
-
-    }
-  );
-
-
-  connection.on(
-    "data",
-    data=>{
-
-      if(
-        data.type===
-        "clock"
-      ){
-
-        clock(data);
-
-      }else{
-
-        apply(data);
-
-      }
-
-    }
-  );
-
-
-  connection.on(
-    "close",
-    ()=>{
-
-      connected=false;
-
-      connectionStatus();
-
-    }
-  );
-
-
-  connection.on(
-    "error",
-    ()=>{
-
-      connected=false;
-
-      status(
-        "🔴 Connection error"
-      );
-
-    }
-  );
-
-}
-
-
-/* =====================================================
-   PEER
-===================================================== */
-
-if(host){
-
-  peer=
-    new Peer(room);
-
-
-  peer.on(
-    "open",
-    ()=>{
-
-      connectionStatus();
-
-    }
-  );
-
-
-  peer.on(
-    "connection",
-    setup
-  );
-
-
-}else{
-
-  peer=
-    new Peer();
-
-
-  peer.on(
-    "open",
-    ()=>{
-
-      setup(
-        peer.connect(room)
-      );
-
-    }
-  );
-
-}
-
-
-/* =====================================================
-   SHARE
-===================================================== */
-
-function share(){
-
-  navigator.clipboard
-    .writeText(
-      location.href
-    );
-
-
-  status(
-    "Room URL copied!"
-  );
-
-}
-
-
-/* =====================================================
-   INITIAL RENDER
-===================================================== */
-
-render();
-
-</script>
-
-</body>
-</html>
