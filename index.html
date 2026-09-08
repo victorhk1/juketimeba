@@ -6,22 +6,92 @@
 <title>Jukebox</title>
 
 <style>
-body{background:#111;color:#eee;font:14px Arial;max-width:700px;margin:auto;padding:20px}
-input,button{padding:9px;background:#222;color:#fff;border:1px solid #444}
+body{
+  background-color:#111;
+  color:#eee;
+  font:14px Arial;
+  max-width:700px;
+  margin:auto;
+  padding:20px;
+
+  background-image:
+    linear-gradient(rgba(0,0,0,.72),rgba(0,0,0,.72)),
+    url("https://wiki.leagueoflegends.com/en-us/images/Infernal_Drake_Render.png?95a26"),
+	url("https://wiki.leagueoflegends.com/en-us/images/Enemy_Missing_ping.png?4ebe8"),
+    url("https://wiki.leagueoflegends.com/en-us/images/thumb/Rift_Scuttler_Render.png/303px-Rift_Scuttler_Render.png?928e2");
+    
+
+  background-size:
+    cover,
+    45% auto,
+    30% auto,
+    15% auto;
+
+  background-position:
+    center,
+    left center,
+    right bottom,
+    right top;
+
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat,
+    no-repeat;
+
+  background-attachment:
+    fixed,
+    fixed,
+    fixed,
+    fixed;
+}
+
+input,button{
+  padding:9px;
+  background:#222;
+  color:#fff;
+  border:1px solid #444
+}
+
 input{width:70%}
-button{cursor:pointer}
-.item{display:flex;justify-content:space-between;background:#1d1d1d;padding:7px;margin:3px 0}
+
+button{
+  cursor:pointer
+}
+
+.item{
+  display:flex;
+  justify-content:space-between;
+  background:#1d1d1dcc;
+  padding:7px;
+  margin:3px 0
+}
+.jukebox-title{
+  font-family:"Comic Sans MS",cursive;
+  text-align:center;
+  font-size:24px;
+  color:#fff;
+  margin:0 0 10px;
+  text-shadow:2px 2px 0 #000;
+}
+
 </style>
 </head>
 
 <body>
+<h1 class="jukebox-title">b-olle musiiic hitstation</h1>
+
 
 <h2>Jukebox</h2>
 
 <div style="display:flex;gap:15px;font-family:sans-serif;">
 
-  <div style="background:#1e1e24;padding:15px;border-radius:6px;width:220px;text-align:center;">
-    <h3 style="margin:0 0 10px;font-size:16px;">Cocainmonstret #EUW</h3>
+  <!-- PLAYER 1 -->
+  <div style="background:#1e1e24dd;padding:15px;border-radius:6px;width:220px;text-align:center;">
+    <h3 style="margin:0 0 10px;font-size:16px;">
+      Cocainmonstret #EUW
+    </h3>
+
     <a href="https://op.gg/lol/summoners/euw/Cocainmonstret-EUW"
        target="_blank"
        style="display:inline-block;background:#5383e8;color:white;padding:8px 12px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:bold;">
@@ -29,8 +99,12 @@ button{cursor:pointer}
     </a>
   </div>
 
-  <div style="background:#1e1e24;padding:15px;border-radius:6px;width:220px;text-align:center;">
-    <h3 style="margin:0 0 10px;font-size:16px;">ElainezBrFfW #EUW</h3>
+  <!-- PLAYER 2 -->
+  <div style="background:#1e1e24dd;padding:15px;border-radius:6px;width:220px;text-align:center;">
+    <h3 style="margin:0 0 10px;font-size:16px;">
+      ElainezBrFfW #EUW
+    </h3>
+
     <a href="https://op.gg/lol/summoners/euw/ElainezBrFfW-EUW"
        target="_blank"
        style="display:inline-block;background:#5383e8;color:white;padding:8px 12px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:bold;">
@@ -106,8 +180,6 @@ let current=null;
 let ready=false;
 let changing=false;
 let playbackEnabled=host;
-
-let lastStateTime=0;
 
 
 /* =====================================================
@@ -244,7 +316,7 @@ function status(text){
 
 
 /* =====================================================
-   YOUTUBE
+   YOUTUBE PLAYER
 ===================================================== */
 
 function onYouTubeIframeAPIReady(){
@@ -253,11 +325,6 @@ function onYouTubeIframeAPIReady(){
 
     width:"100%",
     height:"400",
-
-    /*
-      Empty player is fine.
-      We explicitly load videos when state arrives.
-    */
 
     videoId:"",
 
@@ -289,10 +356,6 @@ function onYouTubeIframeAPIReady(){
             "Connected — waiting for video..."
           );
 
-          /*
-            Ask host for the current state again.
-          */
-
           send({
             type:"request"
           });
@@ -304,18 +367,9 @@ function onYouTubeIframeAPIReady(){
 
       onStateChange:e=>{
 
-        /*
-          Ignore state changes caused by our
-          synchronization commands.
-        */
-
         if(changing)
           return;
 
-
-        /*
-          PLAY
-        */
 
         if(
           e.data===
@@ -334,10 +388,6 @@ function onYouTubeIframeAPIReady(){
         }
 
 
-        /*
-          PAUSE
-        */
-
         if(
           e.data===
           YT.PlayerState.PAUSED
@@ -355,10 +405,6 @@ function onYouTubeIframeAPIReady(){
         }
 
 
-        /*
-          SONG FINISHED
-        */
-
         if(
           e.data===
           YT.PlayerState.ENDED &&
@@ -371,14 +417,6 @@ function onYouTubeIframeAPIReady(){
 
       },
 
-
-      /*
-        Automatically skip unavailable videos.
-
-        100 = unavailable
-        101 = embedding prohibited
-        150 = embedding prohibited
-      */
 
       onError:e=>{
 
@@ -473,7 +511,7 @@ function getID(text){
 
 
 /* =====================================================
-   NORMAL ADD
+   ADD / SEARCH
 ===================================================== */
 
 function add(){
@@ -563,15 +601,7 @@ function playBajsolleClassic(){
 }
 
 
-/* =====================================================
-   START SHUFFLED CLASSICS
-===================================================== */
-
 function startClassicShuffle(){
-
-  /*
-    Fisher-Yates shuffle.
-  */
 
   let shuffled=
     [...classics];
@@ -600,13 +630,6 @@ function startClassicShuffle(){
   }
 
 
-  /*
-    Replace the queue.
-
-    This means one click creates the
-    complete randomized playlist.
-  */
-
   queue=[
     ...shuffled
   ];
@@ -614,10 +637,6 @@ function startClassicShuffle(){
 
   current=null;
 
-
-  /*
-    Start first song.
-  */
 
   next();
 
@@ -632,7 +651,7 @@ function startClassicShuffle(){
 
 
 /* =====================================================
-   ADD CUSTOM CLASSIC
+   ADD CLASSIC + PLAY NEXT
 ===================================================== */
 
 function addClassicAndPlay(){
@@ -682,16 +701,7 @@ function addClassicAndPlay(){
 }
 
 
-/* =====================================================
-   CUSTOM CLASSIC
-===================================================== */
-
 function addClassicAndPlayById(id){
-
-  /*
-    Add to Classics permanently for
-    this page/session.
-  */
 
   if(
     !classics.includes(id)
@@ -701,11 +711,6 @@ function addClassicAndPlayById(id){
 
   }
 
-
-  /*
-    Put it immediately after the
-    currently playing song.
-  */
 
   if(current){
 
@@ -847,7 +852,7 @@ function remove(index){
 
 
 /* =====================================================
-   SKIP BROKEN VIDEO
+   SKIP BROKEN
 ===================================================== */
 
 function skipBrokenCurrent(){
@@ -855,11 +860,6 @@ function skipBrokenCurrent(){
   if(!host)
     return;
 
-
-  /*
-    Remove the broken current song
-    from the front of the queue.
-  */
 
   if(
     queue.length &&
@@ -881,29 +881,16 @@ function skipBrokenCurrent(){
 
   current=null;
 
-
-  /*
-    Move directly to the next song.
-  */
-
   next();
 
 }
 
 
 /* =====================================================
-   NEXT SONG
+   NEXT
 ===================================================== */
 
 function next(){
-
-  /*
-    If the current song is still at
-    the front, remove it.
-
-    This happens when a video naturally
-    finishes.
-  */
 
   if(
     current &&
@@ -915,10 +902,6 @@ function next(){
 
   }
 
-
-  /*
-    No songs left.
-  */
 
   if(!queue.length){
 
@@ -937,22 +920,12 @@ function next(){
   }
 
 
-  /*
-    Next song is always queue[0].
-  */
-
   current=
     queue[0];
 
 
   render();
 
-
-  /*
-    Load the video.
-
-    Host is authoritative.
-  */
 
   if(ready){
 
@@ -969,9 +942,6 @@ function next(){
 
       changing=false;
 
-      /*
-        Host should autoplay.
-      */
 
       if(
         host &&
@@ -1050,11 +1020,6 @@ function enablePlayback(){
 
   changing=true;
 
-
-  /*
-    User interaction allows the browser
-    to start the YouTube player.
-  */
 
   player.playVideo();
 
@@ -1135,23 +1100,10 @@ function send(data){
 
 
 /* =====================================================
-   FULL STATE
+   SYNC
 ===================================================== */
 
 function sync(){
-
-  if(
-    !host ||
-    !ready
-  ){
-
-    /*
-      Still allow state requests etc.
-      No action needed.
-    */
-
-  }
-
 
   send({
 
@@ -1190,18 +1142,9 @@ function sync(){
 
 function apply(data){
 
-
-  /* ===============================================
-     FULL STATE
-  =============================================== */
-
   if(
     data.type==="state"
   ){
-
-    /*
-      Store queue first.
-    */
 
     queue=
       data.queue || [];
@@ -1209,10 +1152,6 @@ function apply(data){
 
     render();
 
-
-    /*
-      Volume.
-    */
 
     if(
       data.volume!=null &&
@@ -1232,10 +1171,6 @@ function apply(data){
     }
 
 
-    /*
-      No current video.
-    */
-
     if(!data.current){
 
       current=null;
@@ -1248,33 +1183,13 @@ function apply(data){
     }
 
 
-    /*
-      IMPORTANT:
-
-      Always load the host's video if
-      our player doesn't currently have it.
-
-      This avoids the User 2 problem where
-      current was already set but the YouTube
-      iframe never actually loaded it.
-    */
-
     let actualVideo=
       ready
       ? player.getVideoData().video_id
       : "";
 
 
-    if(
-      !ready
-    ){
-
-      /*
-        Player isn't ready yet.
-
-        Keep current stored. onReady()
-        will request state again.
-      */
+    if(!ready){
 
       current=
         data.current;
@@ -1307,10 +1222,6 @@ function apply(data){
         changing=false;
 
 
-        /*
-          Host says it is playing.
-        */
-
         if(
           data.playing &&
           playbackEnabled
@@ -1320,11 +1231,6 @@ function apply(data){
 
         }
 
-
-        /*
-          If autoplay was blocked,
-          show the button for User 2.
-        */
 
         if(
           !host &&
@@ -1347,13 +1253,6 @@ function apply(data){
 
 
     }else{
-
-      /*
-        Same video is already loaded.
-
-        Just correct the position and
-        play state.
-      */
 
       current=
         data.current;
@@ -1395,10 +1294,6 @@ function apply(data){
   }
 
 
-  /* ===============================================
-     NORMAL ADD
-  =============================================== */
-
   if(
     data.type==="add" &&
     host
@@ -1421,10 +1316,6 @@ function apply(data){
   }
 
 
-  /* ===============================================
-     REMOVE
-  =============================================== */
-
   if(
     data.type==="remove" &&
     host
@@ -1439,10 +1330,6 @@ function apply(data){
   }
 
 
-  /* ===============================================
-     BAJSOLLE CLASSICS
-  =============================================== */
-
   if(
     data.type==="classic" &&
     host
@@ -1454,10 +1341,6 @@ function apply(data){
 
   }
 
-
-  /* ===============================================
-     CUSTOM CLASSIC
-  =============================================== */
 
   if(
     data.type==="classicAdd" &&
@@ -1472,10 +1355,6 @@ function apply(data){
 
   }
 
-
-  /* ===============================================
-     PLAY
-  =============================================== */
 
   if(
     data.type==="play"
@@ -1515,10 +1394,6 @@ function apply(data){
   }
 
 
-  /* ===============================================
-     PAUSE
-  =============================================== */
-
   if(
     data.type==="pause"
   ){
@@ -1550,10 +1425,6 @@ function apply(data){
   }
 
 
-  /* ===============================================
-     VOLUME
-  =============================================== */
-
   if(
     data.type==="volume"
   ){
@@ -1578,10 +1449,6 @@ function apply(data){
   }
 
 
-  /* ===============================================
-     STATE REQUEST
-  =============================================== */
-
   if(
     data.type==="request" &&
     host
@@ -1595,7 +1462,7 @@ function apply(data){
 
 
 /* =====================================================
-   CLOCK
+   DRIFT CORRECTION
 ===================================================== */
 
 setInterval(()=>{
@@ -1627,7 +1494,7 @@ setInterval(()=>{
 
 
 /* =====================================================
-   CLOCK RECEIVE
+   RECEIVE CLOCK
 ===================================================== */
 
 function clock(data){
@@ -1732,12 +1599,6 @@ function setup(connection){
         "Connected!"
       );
 
-
-      /*
-        Host sends state.
-
-        User 2 asks for state.
-      */
 
       if(host){
 
