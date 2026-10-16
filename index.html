@@ -19,7 +19,6 @@ body{
     url("https://wiki.leagueoflegends.com/en-us/images/Infernal_Drake_Render.png?95a26"),
 	url("https://wiki.leagueoflegends.com/en-us/images/Enemy_Missing_ping.png?4ebe8"),
     url("https://wiki.leagueoflegends.com/en-us/images/thumb/Rift_Scuttler_Render.png/303px-Rift_Scuttler_Render.png?928e2");
-    
 
   background-size:
     cover,
@@ -62,10 +61,17 @@ button{
 .item{
   display:flex;
   justify-content:space-between;
+  align-items:center;
   background:#1d1d1dcc;
   padding:7px;
   margin:3px 0
 }
+
+.item-label{
+  font-size:13px;
+  color:#ccc;
+}
+
 .jukebox-title{
   font-family:"Comic Sans MS",cursive;
   text-align:center;
@@ -75,50 +81,46 @@ button{
   text-shadow:2px 2px 0 #000;
 }
 
+.conn-status{
+  display:inline-block;
+  padding:4px 12px;
+  border-radius:12px;
+  font-size:13px;
+  font-weight:bold;
+  margin-left:8px;
+}
+.conn-status.pending{
+  background:#b8860b;
+  color:#fff;
+}
+.conn-status.connected{
+  background:#2e7d32;
+  color:#fff;
+}
+.conn-status.disconnected{
+  background:#c62828;
+  color:#fff;
+}
+.conn-status.reconnecting{
+  background:#e65100;
+  color:#fff;
+}
 </style>
 </head>
 
 <body>
 <h1 class="jukebox-title">b-olle musiiic hitstation</h1>
 
-
 <h2>Jukebox</h2>
-
-<div style="display:flex;gap:15px;font-family:sans-serif;">
-
-  <!-- PLAYER 1 -->
-  <div style="background:#1e1e24dd;padding:15px;border-radius:6px;width:220px;text-align:center;">
-    <h3 style="margin:0 0 10px;font-size:16px;">
-      Cocainmonstret #EUW
-    </h3>
-
-    <a href="https://op.gg/lol/summoners/euw/Cocainmonstret-EUW"
-       target="_blank"
-       style="display:inline-block;background:#5383e8;color:white;padding:8px 12px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:bold;">
-       Open OP.GG
-    </a>
-  </div>
-
-  <!-- PLAYER 2 -->
-  <div style="background:#1e1e24dd;padding:15px;border-radius:6px;width:220px;text-align:center;">
-    <h3 style="margin:0 0 10px;font-size:16px;">
-      ElainezBrFfW #EUW
-    </h3>
-
-    <a href="https://op.gg/lol/summoners/euw/ElainezBrFfW-EUW"
-       target="_blank"
-       style="display:inline-block;background:#5383e8;color:white;padding:8px 12px;text-decoration:none;border-radius:4px;font-size:13px;font-weight:bold;">
-       Open OP.GG
-    </a>
-  </div>
-
-</div>
 
 <br>
 
 <button onclick="share()">Share room</button>
 
-<p id="status">Connecting...</p>
+<p>
+  <span id="status">Connecting...</span>
+  <span id="connBadge" class="conn-status pending">Pending</span>
+</p>
 
 <button id="enablePlayback"
         onclick="enablePlayback()"
@@ -181,6 +183,115 @@ let ready=false;
 let changing=false;
 let playbackEnabled=host;
 
+let connState="pending";
+let pendingRequest=false;
+let lastState=null;
+let reconnectTimer=null;
+let reconnectAttempts=0;
+const MAX_RECONNECT=5;
+
+/* =====================================================
+   VIDEO LABELS
+===================================================== */
+
+const videoLabels={
+
+  /* 🇮🇳 Indian / Bollywood */
+  "7TITTxxtA88":"🇮🇳 Indian",
+  "KGn-erOG-Bs":"🇮🇳 Indian",
+  "0vK8R2p7v2Q":"🇮🇳 Indian",
+  "V4Jb5q5Q4nI":"🇮🇳 Indian",
+  "g0eO74UmRBs":"🇮🇳 Indian",
+
+  /* 🇲🇽 Mexican */
+  "Z9Z8x5Q4K0Q":"🇲🇽 Mexican",
+  "ULxcmMgsxf4":"🇲🇽 Mexican",
+
+  /* 🇸🇪 Swedish */
+  "eUMlH75Elmw":"🇸🇪 Swedish",
+  "AcMUULoT_jk":"🇸🇪 Swedish",
+  "BpjamIyoeVQ":"🇸🇪 Swedish",
+  "4Ml6pJqc_bw":"🇸🇪 Swedish",
+
+  /* 🇧🇦 Balkan */
+  "W6IAC_4rrHM":"🇧🇦 Balkan",
+  "Ntn7PpY0GUU":"🇧🇦 Balkan",
+  "rmMBAJ_moTg":"🇧🇦 Balkan",
+  "9x4pGQ9YQ3Y":"🇧🇦 Balkan",
+  "5h5QW9HqK4E":"🇧🇦 Balkan",
+
+  /* 🇩🇪 IFA Wartburg */
+  "Y0v0H8w3dJY":"🇩🇪 IFA Wartburg",
+  "3V3kX2QJm5E":"🇩🇪 IFA Wartburg",
+
+  /* 🐸 Eurodance */
+  "jw8sG7wQp3M":"🐸 Eurodance",
+  "llTYfQI5IAM":"🐸 Eurodance",
+  "6r7F4W3sQ5M":"🐸 Eurodance",
+  "8V5cQ3Kp0xA":"🐸 Eurodance",
+
+  /* 💿 E-Type */
+  "8d7e4fY9x2Y":"💿 E-Type",
+  "svnE-eQVtPM":"💿 E-Type",
+  "HoT1GFrMods":"💿 E-Type",
+
+  /* 🇰🇿 Sadraddin */
+  "J4jK8Q9m3Yw":"🇰🇿 Sadraddin",
+  "7x7XK4Jqf9A":"🇰🇿 Sadraddin",
+  "Q8p5R2nK7Lc":"🇰🇿 Sadraddin",
+
+  /* 🤠 Country */
+  "Jsw8q4fNfBw":"🤠 Country",
+  "K7c4P8nQ2Xs":"🤠 Country",
+
+  /* 🎬 Original YouTube */
+  "hvrUrz6cCY0":"🎬 Original",
+  "DvfX5hbhBnw":"🎬 Original",
+  "i35QJVw0RBM":"🎬 Original",
+  "-VILgSsesD0":"🎬 Original",
+  "p_5yt5IX38I":"🎬 Original",
+  "Wj4qpfWHFDo":"🎬 Original",
+  "rShjZ_op1V8":"🎬 Original",
+  "mldcDidGJCg":"🎬 Original",
+  "7Snj1uTnGhc":"🎬 Original",
+  "vJnonxp7YLg":"🎬 Original",
+
+  /* 🤘 Hardcore Superstar */
+  "J7Yq5V9kK4M":"🤘 Hardcore Superstar",
+  "R8mK4pQ7xYs":"🤘 Hardcore Superstar",
+  "F4n8Q2vK6Ys":"🤘 Hardcore Superstar",
+
+  /* 🤘 Metallica */
+  "CD-E-LDc384":"🤘 Metallica",
+  "xnKhsTXoKCI":"🤘 Metallica",
+  "tAGnKpE4NCI":"🤘 Metallica",
+
+  /* 🤘 Black Sabbath */
+  "0qanF-91aJo":"🤘 Black Sabbath",
+  "LQUXuQ6Zd9w":"🤘 Black Sabbath",
+  "5s7_WbiR79E":"🤘 Black Sabbath",
+
+  /* ⚔️ Blind Guardian */
+  "CZ_VFJn2kJM":"⚔️ Blind Guardian",
+  "n63UbX5kzAc":"⚔️ Blind Guardian",
+  "SVg8eP7KPNQ":"⚔️ Blind Guardian",
+
+  /* 🎧 Electronic / EDM */
+  "1T7o8c5Hq9A":"🎧 Electronic",
+  "Q4m8K2vP7Xs":"🎧 Electronic",
+  "0FRlJkUSKv8":"🎧 Electronic",
+
+  /* 🎸 Lynyrd Skynyrd */
+  "0LwcvjNJTuM":"🎸 Lynyrd Skynyrd",
+  "sMmTkKz60W8":"🎸 Lynyrd Skynyrd",
+
+  /* 👑 Michael Jackson */
+  "Zi_XLOBDo_Y":"👑 Michael Jackson",
+  "oRdxUFDoQe0":"👑 Michael Jackson",
+  "sOnqjkJTMaA":"👑 Michael Jackson"
+
+};
+
 
 /* =====================================================
    BAJSOLLE CLASSICS
@@ -188,27 +299,19 @@ let playbackEnabled=host;
 
 const classics=[
 
-  /* 🇮🇳 Indian / Bollywood */
-
   "7TITTxxtA88",
   "KGn-erOG-Bs",
   "0vK8R2p7v2Q",
   "V4Jb5q5Q4nI",
   "g0eO74UmRBs",
 
-  /* 🇲🇽 Mexican */
-
   "Z9Z8x5Q4K0Q",
   "ULxcmMgsxf4",
-
-  /* 🇸🇪 Swedish */
 
   "eUMlH75Elmw",
   "AcMUULoT_jk",
   "BpjamIyoeVQ",
   "4Ml6pJqc_bw",
-
-  /* 🇧🇦 Balkan */
 
   "W6IAC_4rrHM",
   "Ntn7PpY0GUU",
@@ -216,36 +319,24 @@ const classics=[
   "9x4pGQ9YQ3Y",
   "5h5QW9HqK4E",
 
-  /* 🇩🇪 IFA Wartburg */
-
   "Y0v0H8w3dJY",
   "3V3kX2QJm5E",
-
-  /* 🐸 Eurodance */
 
   "jw8sG7wQp3M",
   "llTYfQI5IAM",
   "6r7F4W3sQ5M",
   "8V5cQ3Kp0xA",
 
-  /* 💿 E-Type */
-
   "8d7e4fY9x2Y",
   "svnE-eQVtPM",
   "HoT1GFrMods",
-
-  /* 🇰🇿 Sadraddin */
 
   "J4jK8Q9m3Yw",
   "7x7XK4Jqf9A",
   "Q8p5R2nK7Lc",
 
-  /* 🤠 Country */
-
   "Jsw8q4fNfBw",
   "K7c4P8nQ2Xs",
-
-  /* 🎬 Original YouTube videos */
 
   "hvrUrz6cCY0",
   "DvfX5hbhBnw",
@@ -258,42 +349,28 @@ const classics=[
   "7Snj1uTnGhc",
   "vJnonxp7YLg",
 
-  /* 🤘 Hardcore Superstar */
-
   "J7Yq5V9kK4M",
   "R8mK4pQ7xYs",
   "F4n8Q2vK6Ys",
-
-  /* 🤘 Metallica */
 
   "CD-E-LDc384",
   "xnKhsTXoKCI",
   "tAGnKpE4NCI",
 
-  /* 🤘 Black Sabbath */
-
   "0qanF-91aJo",
   "LQUXuQ6Zd9w",
   "5s7_WbiR79E",
-
-  /* ⚔️ Blind Guardian */
 
   "CZ_VFJn2kJM",
   "n63UbX5kzAc",
   "SVg8eP7KPNQ",
 
-  /* 🎧 Electronic / EDM */
-
   "1T7o8c5Hq9A",
   "Q4m8K2vP7Xs",
   "0FRlJkUSKv8",
 
-  /* 🎸 Lynyrd Skynyrd */
-
   "0LwcvjNJTuM",
   "sMmTkKz60W8",
-
-  /* 👑 Michael Jackson */
 
   "Zi_XLOBDo_Y",
   "oRdxUFDoQe0",
@@ -310,8 +387,23 @@ if(host)
    STATUS
 ===================================================== */
 
-function status(text){
+function setStatus(text, state){
   document.getElementById("status").textContent=text;
+
+  if(state){
+    connState=state;
+  }
+
+  let badge=document.getElementById("connBadge");
+  badge.className="conn-status "+connState;
+
+  const labels={
+    pending:"Pending",
+    connected:"Connected",
+    disconnected:"Disconnected",
+    reconnecting:"Reconnecting..."
+  };
+  badge.textContent=labels[connState]||connState;
 }
 
 
@@ -330,8 +422,7 @@ function onYouTubeIframeAPIReady(){
 
     playerVars:{
       playsinline:1,
-      controls:1,
-      origin:location.origin
+      controls:1
     },
 
     events:{
@@ -339,26 +430,26 @@ function onYouTubeIframeAPIReady(){
       onReady:()=>{
 
         ready=true;
-
         player.setVolume(100);
 
         if(host){
 
           playbackEnabled=true;
-
-          status(
-            "Room ready — share the URL"
-          );
+          setStatus("Room ready — share the URL","connected");
 
         }else{
 
-          status(
-            "Connected — waiting for video..."
-          );
+          if(conn && conn.open){
+            send({type:"request"});
+            setStatus("Connected — waiting for video...","connected");
+          }else{
+            pendingRequest=true;
+            setStatus("Waiting for host...","pending");
+          }
 
-          send({
-            type:"request"
-          });
+          if(lastState){
+            apply(lastState);
+          }
 
         }
 
@@ -370,49 +461,16 @@ function onYouTubeIframeAPIReady(){
         if(changing)
           return;
 
-
-        if(
-          e.data===
-          YT.PlayerState.PLAYING
-        ){
-
-          send({
-
-            type:"play",
-
-            time:
-              player.getCurrentTime()
-
-          });
-
+        if(e.data===YT.PlayerState.PLAYING){
+          send({type:"play",time:player.getCurrentTime()});
         }
 
-
-        if(
-          e.data===
-          YT.PlayerState.PAUSED
-        ){
-
-          send({
-
-            type:"pause",
-
-            time:
-              player.getCurrentTime()
-
-          });
-
+        if(e.data===YT.PlayerState.PAUSED){
+          send({type:"pause",time:player.getCurrentTime()});
         }
 
-
-        if(
-          e.data===
-          YT.PlayerState.ENDED &&
-          host
-        ){
-
+        if(e.data===YT.PlayerState.ENDED && host){
           next();
-
         }
 
       },
@@ -423,25 +481,23 @@ function onYouTubeIframeAPIReady(){
         if(
           host &&
           current &&
-          (
-            e.data===100 ||
-            e.data===101 ||
-            e.data===150 ||
-            e.data===2
-          )
+          (e.data===100||e.data===101||e.data===150||e.data===2)
         ){
 
-          status(
-            "Skipping unavailable video..."
-          );
-
+          setStatus("Skipping unavailable video...","connected");
           skipBrokenCurrent();
+
+        }else if(e.data===2){
+
+          if(!host){
+            setStatus("Waiting for valid video...","connected");
+          }else{
+            setStatus("YouTube error: "+e.data,"connected");
+          }
 
         }else{
 
-          status(
-            "YouTube error: "+e.data
-          );
+          setStatus("YouTube error: "+e.data, connState);
 
         }
 
@@ -464,41 +520,20 @@ function getID(text){
 
     let u=new URL(text);
 
-    if(
-      u.hostname==="youtu.be" ||
-      u.hostname==="www.youtu.be"
-    ){
-
+    if(u.hostname==="youtu.be"||u.hostname==="www.youtu.be"){
       return u.pathname.slice(1);
-
     }
 
+    if(u.hostname.includes("youtube.com")){
 
-    if(
-      u.hostname.includes("youtube.com")
-    ){
-
-      if(
-        u.searchParams.get("v")
-      ){
-
+      if(u.searchParams.get("v")){
         return u.searchParams.get("v");
-
       }
 
+      let parts=u.pathname.split("/");
 
-      let parts=
-        u.pathname.split("/");
-
-
-      if(
-        parts[1]==="shorts" ||
-        parts[1]==="embed" ||
-        parts[1]==="live"
-      ){
-
+      if(parts[1]==="shorts"||parts[1]==="embed"||parts[1]==="live"){
         return parts[2];
-
       }
 
     }
@@ -516,60 +551,32 @@ function getID(text){
 
 function add(){
 
-  let input=
-    document.getElementById("url");
+  let input=document.getElementById("url");
+  let text=input.value.trim();
 
-  let text=
-    input.value.trim();
+  if(!text) return;
 
-
-  if(!text)
-    return;
-
-
-  let id=
-    getID(text);
-
+  let id=getID(text);
 
   if(id){
 
     if(host){
-
       queue.push(id);
-
-      if(!current)
-        next();
-
+      if(!current) next();
       render();
       sync();
-
     }else{
-
-      send({
-
-        type:"add",
-
-        id:id
-
-      });
-
+      send({type:"add",id:id});
     }
 
-
     input.value="";
-
     return;
 
   }
 
-
   window.open(
-
-    "https://www.youtube.com/results?search_query="+
-    encodeURIComponent(text),
-
+    "https://www.youtube.com/results?search_query="+encodeURIComponent(text),
     "_blank"
-
   );
 
 }
@@ -582,19 +589,10 @@ function add(){
 function playBajsolleClassic(){
 
   if(!host){
-
-    send({
-      type:"classic"
-    });
-
-    status(
-      "Requesting Bajsolle Classics..."
-    );
-
+    send({type:"classic"});
+    setStatus("Requesting Bajsolle Classics...","connected");
     return;
-
   }
-
 
   startClassicShuffle();
 
@@ -603,49 +601,18 @@ function playBajsolleClassic(){
 
 function startClassicShuffle(){
 
-  let shuffled=
-    [...classics];
+  let shuffled=[...classics];
 
-
-  for(
-    let i=shuffled.length-1;
-    i>0;
-    i--
-  ){
-
-    let j=
-      Math.floor(
-        Math.random()*(i+1)
-      );
-
-
-    [
-      shuffled[i],
-      shuffled[j]
-    ]=[
-      shuffled[j],
-      shuffled[i]
-    ];
-
+  for(let i=shuffled.length-1;i>0;i--){
+    let j=Math.floor(Math.random()*(i+1));
+    [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
   }
 
-
-  queue=[
-    ...shuffled
-  ];
-
-
+  queue=[...shuffled];
   current=null;
-
-
   next();
 
-
-  status(
-    "🎵 Bajsolle Classics — "+
-    shuffled.length+
-    " songs shuffled"
-  );
+  setStatus("🎵 Bajsolle Classics — "+shuffled.length+" songs shuffled","connected");
 
 }
 
@@ -656,46 +623,21 @@ function startClassicShuffle(){
 
 function addClassicAndPlay(){
 
-  let input=
-    document.getElementById("classicUrl");
-
-
-  let id=
-    getID(
-      input.value.trim()
-    );
-
+  let input=document.getElementById("classicUrl");
+  let id=getID(input.value.trim());
 
   if(!id){
-
-    status(
-      "Please enter a valid YouTube URL."
-    );
-
+    setStatus("Please enter a valid YouTube URL.","connected");
     return;
-
   }
-
 
   if(!host){
-
-    send({
-
-      type:"classicAdd",
-
-      id:id
-
-    });
-
+    send({type:"classicAdd",id:id});
     input.value="";
-
     return;
-
   }
 
-
   addClassicAndPlayById(id);
-
   input.value="";
 
 }
@@ -703,51 +645,25 @@ function addClassicAndPlay(){
 
 function addClassicAndPlayById(id){
 
-  if(
-    !classics.includes(id)
-  ){
-
+  if(!classics.includes(id)){
     classics.push(id);
-
   }
-
 
   if(current){
-
-    let index=
-      queue.indexOf(current);
-
-
+    let index=queue.indexOf(current);
     if(index>=0){
-
-      queue.splice(
-        index+1,
-        0,
-        id
-      );
-
+      queue.splice(index+1,0,id);
     }else{
-
       queue.push(id);
-
     }
-
   }else{
-
     queue.push(id);
-
     next();
-
   }
-
 
   render();
   sync();
-
-
-  status(
-    "Classic added — playing next."
-  );
+  setStatus("Classic added — playing next.","connected");
 
 }
 
@@ -759,38 +675,17 @@ function addClassicAndPlayById(id){
 function randomYouTube(){
 
   const searches=[
-
-    "random music",
-    "random rock music",
-    "random country music",
-    "random pop music",
-    "random electronic music",
-    "random metal music",
-    "random indian music",
-    "random mexican music",
-    "random swedish music",
-    "random balkan music",
-    "random 90s music",
-    "random 2000s music"
-
+    "random music","random rock music","random country music",
+    "random pop music","random electronic music","random metal music",
+    "random indian music","random mexican music","random swedish music",
+    "random balkan music","random 90s music","random 2000s music"
   ];
 
-
-  let query=
-    searches[
-      Math.floor(
-        Math.random()*searches.length
-      )
-    ];
-
+  let query=searches[Math.floor(Math.random()*searches.length)];
 
   window.open(
-
-    "https://www.youtube.com/results?search_query="+
-    encodeURIComponent(query),
-
+    "https://www.youtube.com/results?search_query="+encodeURIComponent(query),
     "_blank"
-
   );
 
 }
@@ -803,47 +698,20 @@ function randomYouTube(){
 function remove(index){
 
   if(!host){
-
-    send({
-
-      type:"remove",
-
-      index:index
-
-    });
-
+    send({type:"remove",index:index});
     return;
-
   }
 
+  if(index<0||index>=queue.length) return;
 
-  if(
-    index<0 ||
-    index>=queue.length
-  )
-    return;
-
-
-  let wasCurrent=
-    queue[index]===current;
-
-
-  queue.splice(
-    index,
-    1
-  );
-
+  let wasCurrent=queue[index]===current;
+  queue.splice(index,1);
 
   if(wasCurrent){
-
     current=null;
-
     next();
-
     return;
-
   }
-
 
   render();
   sync();
@@ -857,30 +725,16 @@ function remove(index){
 
 function skipBrokenCurrent(){
 
-  if(!host)
-    return;
+  if(!host) return;
 
-
-  if(
-    queue.length &&
-    queue[0]===current
-  ){
-
+  if(queue.length&&queue[0]===current){
     queue.shift();
-
   }else{
-
-    let index=
-      queue.indexOf(current);
-
-    if(index>=0)
-      queue.splice(index,1);
-
+    let index=queue.indexOf(current);
+    if(index>=0) queue.splice(index,1);
   }
 
-
   current=null;
-
   next();
 
 }
@@ -892,70 +746,35 @@ function skipBrokenCurrent(){
 
 function next(){
 
-  if(
-    current &&
-    queue.length &&
-    queue[0]===current
-  ){
-
+  if(current&&queue.length&&queue[0]===current){
     queue.shift();
-
   }
-
 
   if(!queue.length){
-
     current=null;
-
-
-    if(ready)
-      player.stopVideo();
-
-
+    if(ready) player.stopVideo();
     render();
     sync();
-
     return;
-
   }
 
-
-  current=
-    queue[0];
-
-
+  current=queue[0];
   render();
 
-
   if(ready){
-
     changing=true;
 
-
-    player.loadVideoById(
-      current,
-      0
-    );
-
+    if(current&&current.length>0){
+      player.loadVideoById(current,0);
+    }
 
     setTimeout(()=>{
-
       changing=false;
-
-
-      if(
-        host &&
-        playbackEnabled
-      ){
-
+      if(host&&playbackEnabled){
         player.playVideo();
-
       }
-
     },700);
-
   }
-
 
   sync();
 
@@ -972,32 +791,30 @@ function render(){
     .getElementById("queue")
     .innerHTML=
 
-    queue.map((id,i)=>`
+    queue.map((id,i)=>{
+
+      let label=videoLabels[id]||"🎵 Custom";
+
+      return `
 
       <div class="item">
 
-        <span>
+        <span class="item-label">
 
-          ${
-            i===0 &&
-            id===current
-            ? "▶ "
-            : ""
-          }
-
-          ${i+1}. ${id}
+          ${i===0&&id===current?"▶ ":""}
+          ${i+1}. ${label}
 
         </span>
 
-        <button
-          onclick="remove(${i})"
-        >
+        <button onclick="remove(${i})">
           ×
         </button>
 
       </div>
 
-    `).join("");
+    `;
+
+    }).join("");
 
 }
 
@@ -1008,44 +825,20 @@ function render(){
 
 function enablePlayback(){
 
-  if(
-    host ||
-    !ready ||
-    !current
-  )
-    return;
-
+  if(host||!ready||!current) return;
 
   playbackEnabled=true;
-
   changing=true;
-
-
   player.playVideo();
 
-
-  setTimeout(()=>{
-
-    changing=false;
-
-  },500);
-
+  setTimeout(()=>{changing=false;},500);
 
   document
     .getElementById("enablePlayback")
     .style.display="none";
 
-
-  status(
-    "Playback enabled — syncing..."
-  );
-
-
-  send({
-
-    type:"request"
-
-  });
+  setStatus("Playback enabled — syncing...","connected");
+  send({type:"request"});
 
 }
 
@@ -1058,21 +851,9 @@ document
   .getElementById("volume")
   .oninput=function(){
 
-    let value=
-      Number(this.value);
-
-
-    if(ready)
-      player.setVolume(value);
-
-
-    send({
-
-      type:"volume",
-
-      volume:value
-
-    });
+    let value=Number(this.value);
+    if(ready) player.setVolume(value);
+    send({type:"volume",volume:value});
 
   };
 
@@ -1083,17 +864,10 @@ document
 
 function send(data){
 
-  if(
-    conn &&
-    conn.open
-  ){
-
+  if(conn&&conn.open){
     try{
-
       conn.send(data);
-
     }catch{}
-
   }
 
 }
@@ -1106,31 +880,18 @@ function send(data){
 function sync(){
 
   send({
-
     type:"state",
-
-    queue:[
-      ...queue
-    ],
-
+    queue:[...queue],
     current:current,
-
     time:
-      ready && current
+      ready&&current
       ? player.getCurrentTime()
       : 0,
-
     playing:
-      ready &&
-      current &&
-      player.getPlayerState()===
-      YT.PlayerState.PLAYING,
-
+      ready&&current&&
+      player.getPlayerState()===YT.PlayerState.PLAYING,
     volume:
-      ready
-      ? player.getVolume()
-      : 100
-
+      ready?player.getVolume():100
   });
 
 }
@@ -1142,320 +903,134 @@ function sync(){
 
 function apply(data){
 
-  if(
-    data.type==="state"
-  ){
+  if(data.type==="state"){
 
-    queue=
-      data.queue || [];
-
-
+    lastState=data;
+    queue=data.queue||[];
     render();
 
-
-    if(
-      data.volume!=null &&
-      ready
-    ){
-
-      player.setVolume(
-        data.volume
-      );
-
-
-      document
-        .getElementById("volume")
-        .value=
-        data.volume;
-
+    if(data.volume!=null&&ready){
+      player.setVolume(data.volume);
+      document.getElementById("volume").value=data.volume;
     }
-
 
     if(!data.current){
-
       current=null;
-
-      if(ready)
-        player.stopVideo();
-
+      if(ready) player.stopVideo();
       return;
-
     }
-
-
-    let actualVideo=
-      ready
-      ? player.getVideoData().video_id
-      : "";
-
 
     if(!ready){
-
-      current=
-        data.current;
-
+      current=data.current;
       return;
-
     }
 
+    let actualVideo=player.getVideoData().video_id||"";
 
-    if(
-      actualVideo !==
-      data.current
-    ){
+    if(!data.current||data.current.length===0) return;
 
-      current=
-        data.current;
+    if(actualVideo!==data.current){
 
-
+      current=data.current;
       changing=true;
 
-
-      player.loadVideoById(
-        data.current,
-        data.time || 0
-      );
-
+      player.loadVideoById(data.current,data.time||0);
 
       setTimeout(()=>{
 
         changing=false;
 
-
-        if(
-          data.playing &&
-          playbackEnabled
-        ){
-
+        if(data.playing&&playbackEnabled){
           player.playVideo();
-
         }
 
-
         if(
-          !host &&
-          data.playing &&
-          player.getPlayerState() !==
-          YT.PlayerState.PLAYING
+          !host&&
+          data.playing&&
+          player.getPlayerState()!==YT.PlayerState.PLAYING
         ){
 
           document
             .getElementById("enablePlayback")
             .style.display="inline-block";
 
-          status(
-            "Click Enable Playback to start."
-          );
+          setStatus("Click Enable Playback to start.","connected");
 
         }
 
       },900);
 
-
     }else{
 
-      current=
-        data.current;
-
-
+      current=data.current;
       changing=true;
+      player.seekTo(data.time||0,true);
 
-
-      player.seekTo(
-        data.time || 0,
-        true
-      );
-
-
-      if(
-        data.playing &&
-        playbackEnabled
-      ){
-
+      if(data.playing&&playbackEnabled){
         player.playVideo();
-
       }else{
-
         player.pauseVideo();
-
       }
 
-
-      setTimeout(
-        ()=>changing=false,
-        300
-      );
+      setTimeout(()=>changing=false,300);
 
     }
-
 
     return;
 
   }
 
 
-  if(
-    data.type==="add" &&
-    host
-  ){
-
-    queue.push(
-      data.id
-    );
-
-
-    if(!current)
-      next();
-
-
+  if(data.type==="add"&&host){
+    queue.push(data.id);
+    if(!current) next();
     render();
     sync();
-
     return;
-
   }
 
-
-  if(
-    data.type==="remove" &&
-    host
-  ){
-
-    remove(
-      data.index
-    );
-
+  if(data.type==="remove"&&host){
+    remove(data.index);
     return;
-
   }
 
-
-  if(
-    data.type==="classic" &&
-    host
-  ){
-
+  if(data.type==="classic"&&host){
     startClassicShuffle();
-
     return;
-
   }
 
-
-  if(
-    data.type==="classicAdd" &&
-    host
-  ){
-
-    addClassicAndPlayById(
-      data.id
-    );
-
+  if(data.type==="classicAdd"&&host){
+    addClassicAndPlayById(data.id);
     return;
-
   }
 
-
-  if(
-    data.type==="play"
-  ){
-
-    if(!ready)
-      return;
-
-
+  if(data.type==="play"){
+    if(!ready) return;
     changing=true;
-
-
-    player.seekTo(
-      data.time || 0,
-      true
-    );
-
-
-    if(
-      host ||
-      playbackEnabled
-    ){
-
-      player.playVideo();
-
-    }
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
-
+    player.seekTo(data.time||0,true);
+    if(host||playbackEnabled) player.playVideo();
+    setTimeout(()=>changing=false,300);
     return;
-
   }
 
-
-  if(
-    data.type==="pause"
-  ){
-
-    if(!ready)
-      return;
-
-
+  if(data.type==="pause"){
+    if(!ready) return;
     changing=true;
-
-
-    player.seekTo(
-      data.time || 0,
-      true
-    );
-
-
+    player.seekTo(data.time||0,true);
     player.pauseVideo();
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
-
+    setTimeout(()=>changing=false,300);
     return;
-
   }
 
-
-  if(
-    data.type==="volume"
-  ){
-
-    if(!ready)
-      return;
-
-
-    player.setVolume(
-      data.volume
-    );
-
-
-    document
-      .getElementById("volume")
-      .value=
-      data.volume;
-
-
+  if(data.type==="volume"){
+    if(!ready) return;
+    player.setVolume(data.volume);
+    document.getElementById("volume").value=data.volume;
     return;
-
   }
 
-
-  if(
-    data.type==="request" &&
-    host
-  ){
-
+  if(data.type==="request"&&host){
     sync();
-
   }
 
 }
@@ -1467,27 +1042,12 @@ function apply(data){
 
 setInterval(()=>{
 
-  if(
-    !host ||
-    !conn ||
-    !conn.open ||
-    !ready ||
-    !current
-  )
-    return;
-
+  if(!host||!conn||!conn.open||!ready||!current) return;
 
   send({
-
     type:"clock",
-
-    time:
-      player.getCurrentTime(),
-
-    playing:
-      player.getPlayerState()===
-      YT.PlayerState.PLAYING
-
+    time:player.getCurrentTime(),
+    playing:player.getPlayerState()===YT.PlayerState.PLAYING
   });
 
 },1000);
@@ -1499,259 +1059,173 @@ setInterval(()=>{
 
 function clock(data){
 
-  if(
-    host ||
-    !ready ||
-    !current ||
-    !playbackEnabled
-  )
-    return;
+  if(host||!ready||!current||!playbackEnabled) return;
 
+  let local=player.getCurrentTime();
+  let drift=Math.abs(local-data.time);
 
-  let local=
-    player.getCurrentTime();
-
-
-  let drift=
-    Math.abs(
-      local-data.time
-    );
-
-
-  if(
-    drift>0.5
-  ){
-
+  if(drift>0.5){
     changing=true;
-
-
-    player.seekTo(
-      data.time,
-      true
-    );
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
+    player.seekTo(data.time,true);
+    setTimeout(()=>changing=false,300);
   }
 
-
-  if(
-    data.playing &&
-    player.getPlayerState() !==
-    YT.PlayerState.PLAYING
-  ){
-
+  if(data.playing&&player.getPlayerState()!==YT.PlayerState.PLAYING){
     changing=true;
-
-
     player.playVideo();
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
+    setTimeout(()=>changing=false,300);
   }
 
-
-  if(
-    !data.playing &&
-    player.getPlayerState()===
-    YT.PlayerState.PLAYING
-  ){
-
+  if(!data.playing&&player.getPlayerState()===YT.PlayerState.PLAYING){
     changing=true;
-
-
     player.pauseVideo();
-
-
-    setTimeout(
-      ()=>changing=false,
-      300
-    );
-
+    setTimeout(()=>changing=false,300);
   }
 
 }
 
 
 /* =====================================================
-   CONNECTION
+   CONNECTION SETUP
 ===================================================== */
 
 function setup(connection){
 
-  conn=
-    connection;
+  conn=connection;
 
+  connection.on("open",()=>{
 
-  connection.on(
-    "open",
-    ()=>{
+    setStatus("Connected!","connected");
+    reconnectAttempts=0;
 
-      status(
-        "Connected!"
-      );
-
-
-      if(host){
-
-        sync();
-
-      }else{
-
-        send({
-
-          type:"request"
-
-        });
-
+    if(host){
+      sync();
+    }else{
+      if(pendingRequest){
+        pendingRequest=false;
       }
-
+      send({type:"request"});
     }
-  );
 
+  });
 
-  connection.on(
-    "data",
-    data=>{
-
-      if(
-        data.type===
-        "clock"
-      ){
-
-        clock(data);
-
-      }else{
-
-        apply(data);
-
-      }
-
+  connection.on("data",data=>{
+    if(data.type==="clock"){
+      clock(data);
+    }else{
+      apply(data);
     }
-  );
+  });
 
+  connection.on("close",()=>{
 
-  connection.on(
-    "close",
-    ()=>{
+    conn=null;
 
-      status(
-        "Disconnected"
-      );
-
+    if(host){
+      setStatus("Guest disconnected.","connected");
+    }else{
+      setStatus("Disconnected from host.","disconnected");
+      scheduleReconnect();
     }
-  );
 
+  });
 
-  connection.on(
-    "error",
-    e=>{
-
-      console.error(
-        "PeerJS connection error:",
-        e
-      );
-
-      status(
-        "Connection error"
-      );
-
+  connection.on("error",e=>{
+    console.error("PeerJS connection error:",e);
+    if(!host){
+      setStatus("Connection error.","disconnected");
+      scheduleReconnect();
     }
-  );
+  });
 
 }
 
 
 /* =====================================================
-   PEER
+   RECONNECT
+===================================================== */
+
+function scheduleReconnect(){
+
+  if(host) return;
+
+  if(reconnectAttempts>=MAX_RECONNECT){
+    setStatus("Failed to reconnect. Refresh page.","disconnected");
+    return;
+  }
+
+  connState="reconnecting";
+  let badge=document.getElementById("connBadge");
+  badge.className="conn-status reconnecting";
+  badge.textContent="Reconnecting...";
+
+  let delay=2000*(reconnectAttempts+1);
+  reconnectAttempts++;
+
+  reconnectTimer=setTimeout(()=>{
+    try{
+      if(peer&&peer.open){
+        let newConn=peer.connect(room,{reliable:true});
+        setup(newConn);
+      }
+    }catch(e){
+      console.error("Reconnect failed:",e);
+      scheduleReconnect();
+    }
+  },delay);
+
+}
+
+
+/* =====================================================
+   PEER INIT
 ===================================================== */
 
 if(host){
 
-  peer=
-    new Peer(room);
+  setStatus("Starting room...","pending");
 
+  peer=new Peer(room);
 
-  peer.on(
-    "open",
-    ()=>{
+  peer.on("open",()=>{
+    setStatus("Room ready — share the URL","connected");
+  });
 
-      status(
-        "Room ready — share the URL"
-      );
+  peer.on("connection",setup);
 
-    }
-  );
+  peer.on("error",e=>{
+    console.error("Peer error:",e);
+    setStatus("Peer error: "+e.type,"disconnected");
+  });
 
-
-  peer.on(
-    "connection",
-    setup
-  );
-
-
-  peer.on(
-    "error",
-    e=>{
-
-      console.error(
-        "Peer error:",
-        e
-      );
-
-      status(
-        "Peer error: "+e.type
-      );
-
-    }
-  );
-
+  peer.on("disconnected",()=>{
+    try{peer.reconnect();}catch{}
+  });
 
 }else{
 
-  peer=
-    new Peer();
+  setStatus("Connecting to room...","pending");
 
+  peer=new Peer();
 
-  peer.on(
-    "open",
-    ()=>{
+  peer.on("open",()=>{
+    let connection=peer.connect(room,{reliable:true});
+    setup(connection);
+  });
 
-      let connection=
-        peer.connect(room);
+  peer.on("error",e=>{
+    console.error("Peer error:",e);
 
-
-      setup(
-        connection
-      );
-
+    if(e.type==="peer-unavailable"){
+      setStatus("Room not found. Check the URL.","disconnected");
+    }else{
+      setStatus("Connection error: "+e.type,"disconnected");
     }
-  );
+  });
 
-
-  peer.on(
-    "error",
-    e=>{
-
-      console.error(
-        "Peer error:",
-        e
-      );
-
-      status(
-        "Connection error: "+e.type
-      );
-
-    }
-  );
+  peer.on("disconnected",()=>{
+    try{peer.reconnect();}catch{}
+  });
 
 }
 
@@ -1762,15 +1236,8 @@ if(host){
 
 function share(){
 
-  navigator.clipboard
-    .writeText(
-      location.href
-    );
-
-
-  status(
-    "Room URL copied!"
-  );
+  navigator.clipboard.writeText(location.href);
+  setStatus("Room URL copied!","connected");
 
 }
 
@@ -1779,4 +1246,4 @@ render();
 
 </script>
 </body>
-</html>
+</html>   
